@@ -1,51 +1,77 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import './styles.css'
+import { useState } from 'react'
+import Editor from './editor/Editor'
+import Nav from './ui/Nav'
+import EmptyState from './ui/EmptyState'
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+const DEMO_NOTE = {
+  title: 'Welcome to Gravitas',
+  content: `## What you can do here
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+Write freely. This is your workshop — a place where raw thought becomes shaped work.
+
+### Text and emphasis
+
+You can write in **bold** when something carries weight, or in *italics* when a word needs to lean. Use \`inline code\` for technical terms or precise references.
+
+### Wikilinks and marks
+
+Connect thoughts with [[wikilinks]] — type [[ and the name of any note. Mark ideas inline with #craft or #oficio. Links and marks are the nervous system of your workshop.
+
+### Catch
+
+Open a scratch note instantly with the catch shortcut. No file name, no shelf, no decisions. The thought lands safely and waits for you.
+
+### Open questions
+
+?? What makes a tool feel like it belongs to you?
+
+Lines starting with ?? become open questions — collected across your whole workshop, never lost.
+
+### Blockquotes
+
+> The details are not the details. They make the design. — Charles Eames
+
+### Code
+
+\`\`\`
+function gravitas() {
+  return presence + weight + calm
+}
+\`\`\`
+
+---
+
+The best writing sessions begin with a single line you almost didn't type.`,
+  meta: {
+    date: 'May 2026',
+    tags: ['#welcome'],
+    type: 'note',
+    words: 0,
+  }
+}
+
+export default function App() {
+  const [workshopOpen, setWorkshopOpen] = useState(false)
+  const [navOpen, setNavOpen] = useState(false)
+
+  const handleOpen = () => {
+    // For now, go straight to editor
+    // Phase 2: open folder dialog here
+    setWorkshopOpen(true)
+  }
+
+  if (!workshopOpen) {
+    return <EmptyState onOpen={handleOpen} />
   }
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
-  );
+    <div className="app">
+      <Nav open={navOpen} onClose={() => setNavOpen(false)} />
+      <Editor
+        note={DEMO_NOTE}
+        onNavOpen={() => setNavOpen(true)}
+      />
+    </div>
+  )
 }
-
-export default App;

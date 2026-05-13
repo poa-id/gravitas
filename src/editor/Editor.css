@@ -1,0 +1,217 @@
+.gv-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+  position: relative;
+}
+
+/* Topbar */
+.gv-topbar {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+}
+
+.gv-editor.ui-visible .gv-topbar,
+.gv-editor.ui-visible .gv-statusbar {
+  opacity: 1;
+}
+
+.gv-nav-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 2px;
+  transition: background 0.15s;
+}
+
+.gv-nav-toggle:hover { background: var(--bg-subtle); }
+
+.gv-nav-toggle span {
+  display: block;
+  width: 14px;
+  height: 1.5px;
+  background: var(--text-dim);
+  border-radius: 1px;
+}
+
+.gv-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.gv-mode-tab {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dimmer);
+  padding: 3px 8px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  user-select: none;
+}
+
+.gv-mode-tab:hover { color: var(--text); background: var(--bg-subtle); }
+.gv-mode-tab.active { color: var(--text); background: var(--bg-surface); }
+
+/* Writing stage — owns no scroll, CM6 does */
+.gv-stage {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 0 48px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.gv-col {
+  width: 600px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Title and meta sit above CM6 but inside the column */
+.gv-header {
+  padding-top: 40px;
+  flex-shrink: 0;
+}
+
+.gv-title {
+  font-family: var(--font-prose);
+  font-size: 26px;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+  margin-bottom: 10px;
+}
+
+.gv-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11.5px;
+  color: var(--text-dimmer);
+  font-family: var(--font-ui);
+  margin-bottom: 36px;
+}
+
+.gv-tag { color: var(--link); }
+
+.gv-type-badge {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  border-radius: 2px;
+  color: var(--text-dimmer);
+}
+
+/* CodeMirror — fills remaining column height, scrolls internally */
+.gv-cm-wrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.gv-cm-wrap .cm-editor {
+  height: 100%;
+  background: transparent;
+  outline: none !important;
+}
+
+.gv-cm-wrap .cm-editor.cm-focused {
+  outline: none !important;
+}
+
+.gv-cm-wrap .cm-scroller {
+  overflow-y: auto !important;
+  padding-bottom: 50vh !important;
+  scroll-padding-top: 42vh;
+  scrollbar-width: none; /* Firefox */
+}
+
+.gv-cm-wrap .cm-scroller::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Tauri */
+}
+
+.gv-cm-wrap .cm-content {
+  font-family: var(--font-prose);
+  font-size: 17px;
+  line-height: 1.8;
+  color: var(--text);
+  caret-color: var(--accent);
+  padding: 0 0 0 0;
+  max-width: 100%;
+}
+
+.gv-cm-wrap .cm-line {
+  padding: 0;
+}
+
+.gv-cm-wrap .cm-cursor,
+.gv-cm-wrap .cm-dropCursor {
+  border-left-width: 2px !important;
+  border-left-color: var(--accent) !important;
+  border-left-style: solid !important;
+}
+
+.gv-cm-wrap .cm-selectionBackground {
+  background: rgba(122, 106, 74, 0.14) !important;
+}
+
+.gv-cm-wrap .cm-gutters { display: none; }
+
+.gv-cm-wrap .cm-activeLine { background: transparent !important; }
+
+/* Statusbar */
+.gv-statusbar {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 20px;
+  border-top: 1px solid var(--border);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  flex-shrink: 0;
+}
+
+.gv-stat {
+  font-size: 10px;
+  color: var(--text-dimmer);
+  font-family: var(--font-ui);
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.gv-stat-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+.gv-cm-wrap .cm-line.cm-activeLine .cm-cursor {
+  border-left-width: 2px !important;
+}

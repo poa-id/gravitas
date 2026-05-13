@@ -26,6 +26,7 @@ export default defineConfig(async () => ({
       : undefined,
     watch: {
       // 3. tell Vite to ignore watching `src-tauri`
+      usePolling: true,
       ignored: ["**/src-tauri/**"],
     },
   },

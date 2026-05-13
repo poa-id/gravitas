@@ -1,0 +1,197 @@
+.gv-nav-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 24, 20, 0.35);
+  z-index: 100;
+  display: flex;
+  align-items: stretch;
+}
+
+.gv-nav {
+  width: 100%;
+  max-width: 680px;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  animation: navSlideIn 0.18s ease;
+}
+
+@keyframes navSlideIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.gv-nav-header {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.gv-nav-logo {
+  font-family: var(--font-prose);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.gv-nav-close {
+  font-size: 11px;
+  color: var(--text-dimmer);
+  font-family: var(--font-ui);
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: color 0.15s;
+}
+
+.gv-nav-close:hover { color: var(--text); }
+
+.gv-nav-body {
+  flex: 1;
+  padding: 20px 28px;
+  overflow-y: auto;
+}
+
+.gv-nav-search {
+  width: 100%;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 8px 12px;
+  font-family: var(--font-prose);
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  margin-bottom: 16px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.gv-nav-search::placeholder { color: var(--text-dimmer); }
+.gv-nav-search:focus {
+  border-color: var(--accent-soft);
+  background: var(--bg);
+}
+
+.gv-nav-scratch {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--bg-subtle);
+  border-radius: 2px;
+  cursor: pointer;
+  margin-bottom: 20px;
+  transition: background 0.15s;
+}
+
+.gv-nav-scratch:hover { background: var(--bg-surface); }
+
+.gv-nav-scratch-label {
+  font-size: 12.5px;
+  color: var(--text);
+  font-family: var(--font-prose);
+  flex: 1;
+}
+
+.gv-nav-scratch-count {
+  font-size: 10px;
+  color: var(--accent);
+  background: var(--bg-surface);
+  padding: 1px 7px;
+  border-radius: 2px;
+  font-family: var(--font-mono);
+}
+
+.gv-nav-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 24px;
+}
+
+.gv-nav-section { margin-bottom: 20px; }
+
+.gv-nav-section-label {
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dimmer);
+  font-family: var(--font-ui);
+  margin-bottom: 8px;
+}
+
+.gv-nav-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  margin: 0 -6px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.gv-nav-file:hover { background: var(--bg-subtle); }
+.gv-nav-file.active { background: var(--bg-surface); }
+
+.gv-nav-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.gv-nav-dot.piece { background: var(--link); }
+.gv-nav-dot.scratch { background: var(--text-dimmer); }
+
+.gv-nav-filename {
+  font-size: 12.5px;
+  color: var(--text);
+  font-family: var(--font-prose);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gv-nav-date {
+  font-size: 10px;
+  color: var(--text-dimmer);
+  font-family: var(--font-ui);
+  flex-shrink: 0;
+}
+
+/* Wikilink styles — used by CM6 plugin */
+.gv-wikilink {
+  color: var(--link);
+  border-bottom: 1px solid var(--link-soft);
+  cursor: pointer;
+  font-family: var(--font-prose);
+}
+
+.gv-wikilink:hover {
+  color: var(--text);
+  border-bottom-color: var(--link);
+}
+
+/* Open question mark */
+.gv-question-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  font-size: 9px;
+  color: var(--text-dimmer);
+  font-family: var(--font-mono);
+  margin-right: 4px;
+  vertical-align: middle;
+  cursor: default;
+}
