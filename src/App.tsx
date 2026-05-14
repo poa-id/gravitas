@@ -7,7 +7,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { loadWorkshop, ensureTodayFolio, readNote, writeNote, type Workshop, type NoteFile } from './workshop/workshopAdapter'
 import { getPreferences, setPreference, addKnownWorkshop } from './workshop/preferences'
 import { createNewNote } from './workshop/noteCreation'
-import { initSound } from './editor/plugins/typewriterSound'
+import { warmup as warmupSound } from './editor/plugins/typewriterSound'
 
 const DEMO_NOTE = {
   title: 'Welcome to Gravitas',
@@ -98,20 +98,41 @@ export default function App() {
   const [saveState, setSaveState] = useState<'set' | 'setting' | 'unsaved'>('set')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const workshopRef = useRef<Workshop | null>(null)
+  const activeNoteRef = useRef<NoteFile | null>(null)
+  const pendingContentRef = useRef<string | null>(null)
 
   useEffect(() => {
-    initSound()
+    warmupSound()
   }, [])
 
-  // Keep ref in sync with state for use inside event listeners
   useEffect(() => {
     workshopRef.current = workshop
   }, [workshop])
+
+  useEffect(() => {
+    activeNoteRef.current = activeNote
+  }, [activeNote])
 
   const refreshWorkshop = async (path: string) => {
     const ws = await loadWorkshop(path)
     setWorkshop(ws)
     return ws
+  }
+
+  const flushSave = async () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = null
+    }
+    if (pendingContentRef.current !== null && activeNoteRef.current) {
+      try {
+        await writeNote(activeNoteRef.current.path, pendingContentRef.current)
+        setSaveState('set')
+        pendingContentRef.current = null
+      } catch (err) {
+        console.error('Failed to flush save:', err)
+      }
+    }
   }
 
   useEffect(() => {
@@ -159,13 +180,11 @@ export default function App() {
     resumeLastSession()
   }, [])
 
-  // Refresh nav when it opens
   useEffect(() => {
     if (!navOpen || !workshop) return
     refreshWorkshop(workshop.path).catch(console.error)
   }, [navOpen])
 
-  // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
       const ws = workshopRef.current
@@ -173,16 +192,32 @@ export default function App() {
 
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault()
+        await flushSave()
         try {
           const note = await createNewNote(ws.path, ['scratch'])
-          const content = ''
           setActiveNote(note)
-          setNoteContent(content)
+          setNoteContent('')
           setSaveState('unsaved')
           await setPreference('lastNotePath', note.path)
           await refreshWorkshop(ws.path)
         } catch (err) {
           console.error('Failed to create note:', err)
+        }
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+        e.preventDefault()
+        await flushSave()
+        try {
+          const folio = await ensureTodayFolio(ws.path)
+          const content = await readNote(folio.path)
+          setActiveNote(folio)
+          setNoteContent(content)
+          setSaveState('set')
+          await setPreference('lastNotePath', folio.path)
+          await refreshWorkshop(ws.path)
+        } catch (err) {
+          console.error('Failed to open folio:', err)
         }
       }
 
@@ -206,16 +241,18 @@ export default function App() {
     if (selected && typeof selected === 'string') {
       try {
         const ws = await loadWorkshop(selected)
-        const todayFolio = await ensureTodayFolio(selected)
         setWorkshop(ws)
         setWorkshopOpen(true)
         await setPreference('lastWorkshopPath', selected)
         await addKnownWorkshop(selected)
 
-        const content = await readNote(todayFolio.path)
-        setActiveNote(todayFolio)
-        setNoteContent(content)
-        await setPreference('lastNotePath', todayFolio.path)
+        if (ws.allNotes.length > 0) {
+          const recent = ws.allNotes[0]
+          const content = await readNote(recent.path)
+          setActiveNote(recent)
+          setNoteContent(content)
+          await setPreference('lastNotePath', recent.path)
+        }
       } catch (err) {
         console.error('Failed to open workshop:', err)
       }
@@ -223,6 +260,7 @@ export default function App() {
   }
 
   const handleNoteSelect = async (note: NoteFile) => {
+    await flushSave()
     try {
       const content = await readNote(note.path)
       setActiveNote(note)
@@ -234,14 +272,34 @@ export default function App() {
     }
   }
 
+  const handleTodayFolio = async () => {
+    if (!workshop) return
+    await flushSave()
+    try {
+      const folio = await ensureTodayFolio(workshop.path)
+      const content = await readNote(folio.path)
+      setActiveNote(folio)
+      setNoteContent(content)
+      setSaveState('set')
+      await setPreference('lastNotePath', folio.path)
+      await refreshWorkshop(workshop.path)
+    } catch (err) {
+      console.error('Failed to open today folio:', err)
+    }
+  }
+
   const handleContentChange = (content: string) => {
     setSaveState('setting')
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    pendingContentRef.current = content
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current)
+    }
     saveTimerRef.current = setTimeout(async () => {
-      if (!activeNote) return
+      if (!activeNoteRef.current) return
       try {
-        await writeNote(activeNote.path, content)
+        await writeNote(activeNoteRef.current.path, content)
         setSaveState('set')
+        pendingContentRef.current = null
       } catch (err) {
         console.error('Failed to save:', err)
         setSaveState('unsaved')
@@ -261,6 +319,7 @@ export default function App() {
         open={navOpen}
         onClose={() => setNavOpen(false)}
         onNoteSelect={handleNoteSelect}
+        onTodayFolio={handleTodayFolio}
         workshop={workshop}
       />
       <Editor
@@ -273,6 +332,7 @@ export default function App() {
         onNavOpen={() => setNavOpen(true)}
         onContentChange={handleContentChange}
         saveState={saveState}
+        soundEnabled={true}
       />
     </div>
   )

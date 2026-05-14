@@ -6,7 +6,7 @@ import { markdown } from '@codemirror/lang-markdown'
 import { gravitas } from './theme'
 import { wikilinkPlugin } from './plugins/wikilinks'
 import { openQuestionPlugin } from './plugins/openQuestions'
-import { typewriterExtensions } from './plugins/typewriter'
+import { typewriterExtensions, setProgrammatic } from './plugins/typewriter'
 import { activeLineScaling } from './plugins/activeLine'
 import { playKeySound } from './plugins/typewriterSound'
 import './Editor.css'
@@ -40,7 +40,13 @@ function readingTime(words: number): string {
   return mins < 1 ? '< 1 min' : `~${mins} min read`
 }
 
-export default function Editor({ note, onNavOpen, onContentChange, saveState = 'set', soundEnabled = true }: EditorProps) {
+export default function Editor({
+  note,
+  onNavOpen,
+  onContentChange,
+  saveState = 'set',
+  soundEnabled = false
+}: EditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const [words, setWords] = useState(countWords(note.content))
@@ -48,6 +54,11 @@ export default function Editor({ note, onNavOpen, onContentChange, saveState = '
   const [uiVisible, setUiVisible] = useState(false)
   const uiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const activeKeyRef = useRef<string>('')
+  const soundEnabledRef = useRef(soundEnabled)
+
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled
+  }, [soundEnabled])
 
   const showUI = (e: React.MouseEvent) => {
     if (e.movementX === 0 && e.movementY === 0) return
@@ -56,7 +67,6 @@ export default function Editor({ note, onNavOpen, onContentChange, saveState = '
     uiTimerRef.current = setTimeout(() => setUiVisible(false), 2500)
   }
 
-  // Initialize editor once
   useEffect(() => {
     if (!editorRef.current) return
 
@@ -73,8 +83,13 @@ export default function Editor({ note, onNavOpen, onContentChange, saveState = '
         ...typewriterExtensions,
         EditorView.domEventHandlers({
           keydown(e) {
-            if (!soundEnabled) return false
-            if (e.key.length === 1 || e.key === 'Enter' || e.key === 'Backspace') {
+            if (!soundEnabledRef.current) return false
+            if (
+              e.key.length === 1 ||
+              e.key === 'Enter' ||
+              e.key === 'Backspace' ||
+              e.key === 'Delete'
+            ) {
               playKeySound()
             }
             return false
@@ -104,30 +119,44 @@ export default function Editor({ note, onNavOpen, onContentChange, saveState = '
     return () => view.destroy()
   }, [])
 
-  // Switch notes without reinitializing
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
-  
+
     if (note.path === activeKeyRef.current) return
-  
+
     activeKeyRef.current = note.path
-  
+
+    // Disable typewriter during programmatic content swap
+    setProgrammatic(true)
+
     view.dispatch({
       changes: {
         from: 0,
         to: view.state.doc.length,
         insert: note.content,
       },
-      selection: { anchor: 0 },
       scrollIntoView: false,
     })
-  
+
     setWords(countWords(note.content))
     setChars(note.content.length)
-    view.scrollDOM.scrollTop = 0
-    requestAnimationFrame(() => view.focus())
-  
+
+    requestAnimationFrame(() => {
+      const endPos = view.state.doc.length
+      view.dispatch({
+        selection: { anchor: endPos },
+        scrollIntoView: false,
+      })
+      view.scrollDOM.scrollTop = view.scrollDOM.scrollHeight
+
+      // Release programmatic lock after settling
+      requestAnimationFrame(() => {
+        setProgrammatic(false)
+        view.focus()
+      })
+    })
+
   }, [note.path, note.content])
 
   const saveLabel = saveState === 'set'

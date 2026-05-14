@@ -2,6 +2,7 @@ import { EditorView, ViewPlugin, ViewUpdate, Decoration, DecorationSet } from '@
 import { RangeSetBuilder } from '@codemirror/state'
 
 const activeLineDeco = Decoration.line({ class: 'cm-gravitas-active' })
+const inactiveLineDeco = Decoration.line({ class: 'cm-gravitas-inactive' })
 
 export const activeLineScaling = ViewPlugin.fromClass(
   class {
@@ -20,12 +21,15 @@ export const activeLineScaling = ViewPlugin.fromClass(
     buildDecorations(view: EditorView): DecorationSet {
       const builder = new RangeSetBuilder<Decoration>()
       const selection = view.state.selection.main
-      const line = view.state.doc.lineAt(selection.head)
+      const activeLine = view.state.doc.lineAt(selection.head)
 
-      // Only apply scaling if the line is short — won't wrap
-      // Threshold: 80 chars fits in our column without wrapping
-      if (line.length <= 80) {
-        builder.add(line.from, line.from, activeLineDeco)
+      for (let i = 1; i <= view.state.doc.lines; i++) {
+        const line = view.state.doc.line(i)
+        if (line.number === activeLine.number) {
+          builder.add(line.from, line.from, activeLineDeco)
+        } else {
+          builder.add(line.from, line.from, inactiveLineDeco)
+        }
       }
 
       return builder.finish()

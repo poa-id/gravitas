@@ -155,7 +155,7 @@
 
 .gv-cm-wrap .cm-content {
   font-family: var(--font-prose);
-  font-size: 17px;
+  font-size: 18px;
   line-height: 1.8;
   color: var(--text);
   caret-color: var(--accent);
@@ -220,7 +220,16 @@
 .gv-stat-dot.unsaved { background: var(--warn); }
 
 .cm-gravitas-active {
-  font-size: 17.5px !important;
+  opacity: 1;
+}
+
+.cm-gravitas-inactive {
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+}
+
+.cm-gravitas-active {
+  transition: opacity 0.15s ease;
 }
 
 .gv-cm-wrap .cm-content {

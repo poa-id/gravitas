@@ -6,10 +6,11 @@ interface NavProps {
   open: boolean
   onClose: () => void
   onNoteSelect: (note: NoteFile) => void
+  onTodayFolio: () => void
   workshop: Workshop
 }
 
-export default function Nav({ open, onClose, onNoteSelect, workshop }: NavProps) {
+export default function Nav({ open, onClose, onNoteSelect, onTodayFolio, workshop }: NavProps) {
   const [search, setSearch] = useState('')
 
   if (!open) return null
@@ -109,23 +110,44 @@ export default function Nav({ open, onClose, onNoteSelect, workshop }: NavProps)
 )}
 
                 {/* Folio — daily notes */}
-                <div className="gv-nav-section">
-                  <div className="gv-nav-section-label">Folio</div>
-                  {workshop.folio.slice(0, 5).map(note => (
-                    <div
-                      key={note.path}
-                      className="gv-nav-file"
-                      onClick={() => handleSelect(note)}
-                    >
-                      <span className="gv-nav-dot" />
-                      <span className="gv-nav-filename">{note.name}</span>
-                      <span className="gv-nav-date">{formatDate(note.name)}</span>
-                    </div>
-                  ))}
-                  {workshop.folio.length === 0 && (
-                    <div className="gv-nav-empty">No folios yet.</div>
-                  )}
-                </div>
+<div className="gv-nav-section">
+  <div className="gv-nav-section-label">Folio</div>
+
+  {/* Today — always shown, creates on click if needed */}
+  <div
+    className="gv-nav-file"
+    onClick={() => {
+      onTodayFolio()
+      onClose()
+    }}
+  >
+    <span className="gv-nav-dot folio" />
+    <span className="gv-nav-filename">Today</span>
+    <span className="gv-nav-date">
+      {new Date().toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+    </span>
+  </div>
+
+  {/* Past folios — exclude today if it exists */}
+  {workshop.folio
+    .filter(n => n.name !== new Date().toISOString().split('T')[0])
+    .slice(0, 5)
+    .map(note => (
+      <div
+        key={note.path}
+        className="gv-nav-file"
+        onClick={() => handleSelect(note)}
+      >
+        <span className="gv-nav-dot" />
+        <span className="gv-nav-filename">{note.name}</span>
+        <span className="gv-nav-date">{formatDate(note.name)}</span>
+      </div>
+    ))}
+
+  {workshop.folio.length === 0 && (
+    <div className="gv-nav-empty">No past folios.</div>
+  )}
+</div>
 
               </div>
 
