@@ -7,10 +7,13 @@ import { gravitas } from './theme'
 import { wikilinkPlugin } from './plugins/wikilinks'
 import { openQuestionPlugin } from './plugins/openQuestions'
 import { typewriterExtensions } from './plugins/typewriter'
+import { activeLineScaling } from './plugins/activeLine'
+import { playKeySound } from './plugins/typewriterSound'
 import './Editor.css'
 
 interface Note {
   title: string
+  path: string
   content: string
   meta: {
     date: string
@@ -23,6 +26,9 @@ interface Note {
 interface EditorProps {
   note: Note
   onNavOpen: () => void
+  onContentChange?: (content: string) => void
+  saveState?: 'set' | 'setting' | 'unsaved'
+  soundEnabled?: boolean
 }
 
 function countWords(text: string): number {
@@ -34,25 +40,23 @@ function readingTime(words: number): string {
   return mins < 1 ? '< 1 min' : `~${mins} min read`
 }
 
-export default function Editor({ note, onNavOpen }: EditorProps) {
+export default function Editor({ note, onNavOpen, onContentChange, saveState = 'set', soundEnabled = true }: EditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const [words, setWords] = useState(countWords(note.content))
   const [chars, setChars] = useState(note.content.length)
   const [uiVisible, setUiVisible] = useState(false)
   const uiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const activeKeyRef = useRef<string>('')
 
-  const isTyping = useRef(false)
-  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  
   const showUI = (e: React.MouseEvent) => {
-    // Only show UI on genuine mouse movement, not keyboard-triggered repaints
     if (e.movementX === 0 && e.movementY === 0) return
     setUiVisible(true)
     if (uiTimerRef.current) clearTimeout(uiTimerRef.current)
     uiTimerRef.current = setTimeout(() => setUiVisible(false), 2500)
   }
 
+  // Initialize editor once
   useEffect(() => {
     if (!editorRef.current) return
 
@@ -65,12 +69,23 @@ export default function Editor({ note, onNavOpen }: EditorProps) {
         gravitas,
         wikilinkPlugin,
         openQuestionPlugin,
+        activeLineScaling,
         ...typewriterExtensions,
+        EditorView.domEventHandlers({
+          keydown(e) {
+            if (!soundEnabled) return false
+            if (e.key.length === 1 || e.key === 'Enter' || e.key === 'Backspace') {
+              playKeySound()
+            }
+            return false
+          }
+        }),
         EditorView.updateListener.of((update: ViewUpdate) => {
           if (update.docChanged) {
             const text = update.state.doc.toString()
             setWords(countWords(text))
             setChars(text.length)
+            onContentChange?.(text)
           }
         }),
         EditorView.lineWrapping,
@@ -80,22 +95,46 @@ export default function Editor({ note, onNavOpen }: EditorProps) {
     const view = new EditorView({
       state,
       parent: editorRef.current,
-      dispatchTransactions(trs) {
-        const filtered = trs.map(tr => {
-          if (tr.scrollIntoView && !tr.docChanged) {
-            return tr.state.update({ scrollIntoView: false })
-          }
-          return tr
-        })
-        view.update(filtered)
-      }
     })
 
     viewRef.current = view
+    activeKeyRef.current = note.path
     view.focus()
 
     return () => view.destroy()
   }, [])
+
+  // Switch notes without reinitializing
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+  
+    if (note.path === activeKeyRef.current) return
+  
+    activeKeyRef.current = note.path
+  
+    view.dispatch({
+      changes: {
+        from: 0,
+        to: view.state.doc.length,
+        insert: note.content,
+      },
+      selection: { anchor: 0 },
+      scrollIntoView: false,
+    })
+  
+    setWords(countWords(note.content))
+    setChars(note.content.length)
+    view.scrollDOM.scrollTop = 0
+    requestAnimationFrame(() => view.focus())
+  
+  }, [note.path, note.content])
+
+  const saveLabel = saveState === 'set'
+    ? 'Set'
+    : saveState === 'setting'
+    ? 'Setting…'
+    : 'Not set'
 
   return (
     <div
@@ -131,8 +170,8 @@ export default function Editor({ note, onNavOpen }: EditorProps) {
 
       <div className="gv-statusbar">
         <span className="gv-stat">
-          <span className="gv-stat-dot" />
-          Not set
+          <span className={`gv-stat-dot ${saveState}`} />
+          {saveLabel}
         </span>
         <span className="gv-stat">{words} words</span>
         <span className="gv-stat">{chars} chars</span>

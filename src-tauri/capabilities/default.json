@@ -22,6 +22,10 @@
     "fs:scope-desktop-recursive",
     "dialog:default",
     "dialog:allow-open",
-    "dialog:allow-save"
+    "dialog:allow-save",
+    "store:allow-get",
+"store:allow-set",
+"store:allow-save",
+"store:allow-load"
   ]
 }

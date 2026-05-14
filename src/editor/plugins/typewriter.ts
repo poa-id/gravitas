@@ -1,24 +1,7 @@
 import { EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view'
+import { EditorState, Transaction } from '@codemirror/state'
 
-// Target position from top of viewport
-// 0.62 = cursor sits at 62% from top — more text above, breathing room below
 const TARGET_RATIO = 0.62
-
-export function createTypewriterDispatch(view: EditorView) {
-  return function(trs: readonly any[]) {
-    // Strip scrollIntoView from any transaction that doesn't change the document
-    const processed = trs.map(tr => {
-      if (tr.scrollIntoView && !tr.docChanged) {
-        return view.state.update({ 
-          ...tr, 
-          scrollIntoView: false 
-        })
-      }
-      return tr
-    })
-    EditorView.prototype.update.call(view, processed)
-  }
-}
 
 function scrollToCursor(view: EditorView) {
   const head = view.state.selection.main.head
@@ -31,14 +14,36 @@ function scrollToCursor(view: EditorView) {
   const lineRelative = lineMiddle - rect.top
   const absolutePos = scroller.scrollTop + lineRelative
 
-  // Soft top: near start of document don't force down
-  if (absolutePos < rect.height * TARGET_RATIO) return
+  if (absolutePos < rect.height * (1 - TARGET_RATIO)) return
 
-  const delta = lineRelative - rect.height * TARGET_RATIO
+  const delta = lineRelative - rect.height * (1 - TARGET_RATIO)
   scroller.scrollTop = Math.max(0, scroller.scrollTop + delta)
 }
 
 export const typewriterExtensions = [
+  EditorState.transactionFilter.of(tr => {
+    if (!tr.scrollIntoView) return tr
+    if (tr.docChanged) return tr // let typing through — our plugin handles it
+
+    // Check if this is a keyboard move or a mouse click
+    const userEvent = tr.annotation(Transaction.userEvent)
+    const isKeyboard = userEvent?.startsWith('select') && !userEvent.includes('pointer')
+    const isMouse = userEvent?.includes('pointer') || userEvent?.includes('click')
+
+    if (isMouse) {
+      // Mouse click — suppress scroll entirely
+      return [{ ...tr, scrollIntoView: false }]
+    }
+
+    if (isKeyboard) {
+      // Keyboard navigation — allow but we'll handle it ourselves
+      return [{ ...tr, scrollIntoView: false }]
+    }
+
+    // Unknown — suppress to be safe
+    return [{ ...tr, scrollIntoView: false }]
+  }),
+
   ViewPlugin.fromClass(
     class {
       private pending: number | null = null
@@ -46,12 +51,32 @@ export const typewriterExtensions = [
       constructor(private view: EditorView) {}
 
       update(update: ViewUpdate) {
-        if (!update.docChanged) return
-        if (this.pending !== null) cancelAnimationFrame(this.pending)
-        this.pending = requestAnimationFrame(() => {
-          this.pending = null
-          scrollToCursor(this.view)
-        })
+        if (update.docChanged) {
+          // Typing — center the cursor
+          if (this.pending !== null) cancelAnimationFrame(this.pending)
+          this.pending = requestAnimationFrame(() => {
+            this.pending = null
+            scrollToCursor(this.view)
+          })
+          return
+        }
+
+        if (update.selectionSet) {
+          // Check if this was keyboard navigation
+          const isKeyboard = update.transactions.some(tr => {
+            const event = tr.annotation(Transaction.userEvent)
+            return event?.startsWith('select') && !event.includes('pointer')
+          })
+
+          if (isKeyboard) {
+            if (this.pending !== null) cancelAnimationFrame(this.pending)
+            this.pending = requestAnimationFrame(() => {
+              this.pending = null
+              scrollToCursor(this.view)
+            })
+          }
+          // Mouse click — do nothing, let user look where they want
+        }
       }
 
       destroy() {
@@ -59,6 +84,7 @@ export const typewriterExtensions = [
       }
     }
   ),
+
   EditorView.theme({
     '.cm-scroller': {
       paddingBottom: '50vh !important',

@@ -215,3 +215,15 @@
 .gv-cm-wrap .cm-line.cm-activeLine .cm-cursor {
   border-left-width: 2px !important;
 }
+.gv-stat-dot.set     { background: var(--link); }
+.gv-stat-dot.setting { background: var(--accent-soft); }
+.gv-stat-dot.unsaved { background: var(--warn); }
+
+.cm-gravitas-active {
+  font-size: 17.5px !important;
+}
+
+.gv-cm-wrap .cm-content {
+  /* existing rules stay — add transition */
+  transition: font-size 60ms ease;
+}
