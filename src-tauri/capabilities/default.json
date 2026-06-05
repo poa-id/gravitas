@@ -2,7 +2,9 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Default capabilities for Gravitas",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "fs:default",
@@ -24,8 +26,16 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "store:allow-get",
-"store:allow-set",
-"store:allow-save",
-"store:allow-load"
+    "store:allow-set",
+    "store:allow-save",
+    "core:menu:allow-new",
+    "core:menu:allow-append",
+    "core:menu:allow-popup",
+    "core:menu:allow-text",
+    "core:menu:allow-is-enabled",
+    "core:menu:allow-set-enabled",
+    "store:allow-load",
+    "opener:allow-reveal-item-in-dir",
+    "opener:default"
   ]
 }

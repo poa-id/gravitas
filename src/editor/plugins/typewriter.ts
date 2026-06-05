@@ -1,7 +1,7 @@
 import { EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view'
 import { EditorState, Transaction } from '@codemirror/state'
 
-const TARGET_RATIO = 0.38
+const TARGET_RATIO = 0.25
 let programmatic = false
 
 export function setProgrammatic(val: boolean) {

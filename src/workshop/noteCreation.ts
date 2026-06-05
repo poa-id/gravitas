@@ -1,20 +1,19 @@
-import { writeTextFile, mkdir, exists } from '@tauri-apps/plugin-fs'
+import { writeTextFile, mkdir, exists, rename } from '@tauri-apps/plugin-fs'
 import type { NoteFile } from './workshopAdapter'
 
-// Sanitize a title into a valid filename
 export function titleToFilename(title: string): string {
   return title
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')  // remove special chars
-    .replace(/\s+/g, '-')           // spaces to hyphens
-    .replace(/-+/g, '-')            // collapse multiple hyphens
-    .replace(/^-|-$/g, '')          // trim leading/trailing hyphens
-    .slice(0, 60)                   // max 60 chars
-    || 'untitled'                   // fallback
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 60)
+    || 'untitled'
 }
 
-// Extract title from first line of content
-// Handles: # Heading, ## Heading, or plain first line
 export function extractTitle(content: string): string {
   const firstLine = content.split('\n')[0].trim()
   if (!firstLine) return 'untitled'
@@ -29,13 +28,11 @@ export async function createNewNote(
     ? `${workshopPath}/${shelf.join('/')}`
     : workshopPath
 
-  // Ensure folder exists
   const folderExists = await exists(folderPath)
   if (!folderExists) {
     await mkdir(folderPath, { recursive: true })
   }
 
-  // Find a unique filename
   let filename = 'untitled'
   let counter = 0
   let fullPath = `${folderPath}/${filename}.md`
@@ -48,15 +45,12 @@ export async function createNewNote(
 
   await writeTextFile(fullPath, '')
 
-  return {
-    name: filename,
-    path: fullPath,
-    shelf,
-  }
+  return { name: filename, path: fullPath, shelf }
 }
 
-// Rename a note file when its title changes
-export async function renameNoteFromTitle(
+// Renames the file on disk and returns the new NoteFile
+// Returns null if rename is not possible (collision, same name, folio)
+export async function renameNoteOnDisk(
   note: NoteFile,
   newTitle: string,
   workshopPath: string
@@ -70,15 +64,10 @@ export async function renameNoteFromTitle(
 
   const newPath = `${folderPath}/${newFilename}.md`
 
-  // Don't rename if same name
   if (newPath === note.path) return null
-
-  // Don't rename if target already exists
   if (await exists(newPath)) return null
 
-  return {
-    name: newFilename,
-    path: newPath,
-    shelf: note.shelf,
-  }
+  await rename(note.path, newPath)
+
+  return { name: newFilename, path: newPath, shelf: note.shelf }
 }

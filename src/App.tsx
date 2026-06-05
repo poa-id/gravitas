@@ -1,13 +1,18 @@
 import './styles.css'
 import { useState, useEffect, useRef } from 'react'
-import Editor from './editor/Editor'
+import Editor, { type EditorHandle } from './editor/Editor'
 import Nav from './ui/Nav'
 import EmptyState from './ui/EmptyState'
 import { open } from '@tauri-apps/plugin-dialog'
-import { loadWorkshop, ensureTodayFolio, readNote, writeNote, type Workshop, type NoteFile } from './workshop/workshopAdapter'
+import {
+  loadWorkshop, ensureTodayFolio, ensureScratch, readNote, writeNote,
+  type Workshop, type NoteFile,
+} from './workshop/workshopAdapter'
 import { getPreferences, setPreference, addKnownWorkshop } from './workshop/preferences'
-import { createNewNote } from './workshop/noteCreation'
+import { createNewNote, renameNoteOnDisk } from './workshop/noteCreation'
 import { warmup as warmupSound } from './editor/plugins/typewriterSound'
+import { invalidateSignalCache } from './ui/Nav'
+import Prefs from './ui/Prefs'
 
 const DEMO_NOTE = {
   title: 'Welcome to Gravitas',
@@ -57,9 +62,20 @@ The best writing sessions begin with a single line you almost didn't type.`,
   }
 }
 
+function localDateStr(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
 function formatNoteTitle(note: NoteFile): string {
   const dateMatch = note.name.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (dateMatch) {
+    const today = localDateStr(new Date())
+    const yesterday = localDateStr(new Date(Date.now() - 86400000))
+    if (note.name === today) return 'Today'
+    if (note.name === yesterday) return 'Yesterday'
     const d = new Date(note.name + 'T12:00:00')
     return d.toLocaleDateString('en', {
       weekday: 'long',
@@ -68,7 +84,8 @@ function formatNoteTitle(note: NoteFile): string {
       year: 'numeric'
     })
   }
-  return note.name
+  const words = note.name.replace(/-/g, ' ')
+  return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
 function formatNoteMeta(note: NoteFile) {
@@ -81,7 +98,7 @@ function formatNoteMeta(note: NoteFile) {
 
   const type = note.shelf.includes('folio')
     ? 'folio'
-    : note.shelf.includes('scratch')
+    : note.name === 'scratch' && note.shelf.length === 0
     ? 'scratch'
     : 'note'
 
@@ -100,18 +117,57 @@ export default function App() {
   const workshopRef = useRef<Workshop | null>(null)
   const activeNoteRef = useRef<NoteFile | null>(null)
   const pendingContentRef = useRef<string | null>(null)
+  const [noteTitles, setNoteTitles] = useState<Map<string, string>>(new Map())
+  const [isNewNote, setIsNewNote] = useState(false)
+  const [showScratchToast, setShowScratchToast] = useState(false)
+  const [toastDismissing, setToastDismissing] = useState(false)
+  const editorRef = useRef<EditorHandle>(null)
 
+  const setNoteTitle = (path: string, title: string) => {
+    setNoteTitles(prev => new Map(prev).set(path, title))
+  }
+  const clearNoteTitle = (path: string) => {
+    setNoteTitles(prev => { const next = new Map(prev); next.delete(path); return next })
+  }
+
+  const [prefsOpen, setPrefsOpen] = useState(false)
+  const [soundEnabled, setSoundEnabled] = useState(true)
+  const [pasteIntentEnabled, setPasteIntentEnabled] = useState(true)
+
+  useEffect(() => { warmupSound() }, [])
+  useEffect(() => { workshopRef.current = workshop }, [workshop])
+  useEffect(() => { activeNoteRef.current = activeNote }, [activeNote])
+
+  // Midnight rollover
   useEffect(() => {
-    warmupSound()
+    const scheduleRollover = () => {
+      const now = new Date()
+      const msUntilMidnight =
+        new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - now.getTime()
+
+      const timer = setTimeout(async () => {
+        const ws = workshopRef.current
+        if (!ws) return
+        try {
+          const folio = await ensureTodayFolio(ws.path)
+          const content = await readNote(folio.path)
+          setActiveNote(folio)
+          setNoteContent(content)
+          setSaveState('set')
+          await setPreference('lastNotePath', folio.path)
+          await refreshWorkshop(ws.path)
+        } catch (err) {
+          console.error('Midnight rollover failed:', err)
+        }
+        scheduleRollover()
+      }, msUntilMidnight + 1000)
+
+      return timer
+    }
+
+    const timer = scheduleRollover()
+    return () => clearTimeout(timer)
   }, [])
-
-  useEffect(() => {
-    workshopRef.current = workshop
-  }, [workshop])
-
-  useEffect(() => {
-    activeNoteRef.current = activeNote
-  }, [activeNote])
 
   const refreshWorkshop = async (path: string) => {
     const ws = await loadWorkshop(path)
@@ -135,10 +191,26 @@ export default function App() {
     }
   }
 
+  const showToastOnce = async () => {
+    const prefs = await getPreferences()
+    if (prefs.seenScratchToast) return
+    await setPreference('seenScratchToast', true)
+    setShowScratchToast(true)
+    setTimeout(() => {
+      setToastDismissing(true)
+      setTimeout(() => {
+        setShowScratchToast(false)
+        setToastDismissing(false)
+      }, 200)
+    }, 4000)
+  }
+
   useEffect(() => {
     async function resumeLastSession() {
       try {
         const prefs = await getPreferences()
+        setSoundEnabled(prefs.soundEnabled !== false)
+        setPasteIntentEnabled(prefs.pasteIntentEnabled !== false)
         if (!prefs.lastWorkshopPath) {
           setLoading(false)
           return
@@ -188,23 +260,66 @@ export default function App() {
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
       const ws = workshopRef.current
+
+      if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+        e.preventDefault()
+        setPrefsOpen(prev => !prev)
+      }
+
       if (!ws) return
 
+      // ⌘S — new scratch entry
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault()
+
+        const now = new Date()
+        const datePart = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        const timePart = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+        const divider = `\n---\n*${datePart} · ${timePart}*\n\n`
+
+        const isScratchNow = activeNoteRef.current?.shelf.length === 0
+          && activeNoteRef.current?.name === 'scratch'
+
+        if (isScratchNow) {
+          // Dispatch directly into the CM6 editor
+          editorRef.current?.appendEntry(divider)
+        } else {
+          // Switch to scratch, pre-appending the new entry
+          await flushSave()
+          const scratch = await ensureScratch(ws.path)
+          const existing = await readNote(scratch.path).catch(() => '')
+          const newContent = existing + divider
+          await writeNote(scratch.path, newContent)
+          setActiveNote(scratch)
+          setNoteContent(newContent)
+          setSaveState('set')
+          await setPreference('lastNotePath', scratch.path)
+          await refreshWorkshop(ws.path)
+        }
+
+        showToastOnce()
+        return
+      }
+
+      // ⌘N — new named note on workshop floor
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault()
         await flushSave()
         try {
-          const note = await createNewNote(ws.path, ['scratch'])
+          const note = await createNewNote(ws.path, [])  // workshop floor, no shelf
           setActiveNote(note)
           setNoteContent('')
           setSaveState('unsaved')
+          setIsNewNote(true)
           await setPreference('lastNotePath', note.path)
           await refreshWorkshop(ws.path)
         } catch (err) {
           console.error('Failed to create note:', err)
         }
+        return
       }
 
+      // ⌘D — today's folio
       if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
         e.preventDefault()
         await flushSave()
@@ -219,8 +334,10 @@ export default function App() {
         } catch (err) {
           console.error('Failed to open folio:', err)
         }
+        return
       }
 
+      // ⌘K — nav toggle
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
         setNavOpen(prev => !prev)
@@ -230,6 +347,65 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
+
+  const handleWorkshopChange = async (path: string) => {
+    try {
+      const ws = await loadWorkshop(path)
+      setWorkshop(ws)
+      setWorkshopOpen(true)
+      await setPreference('lastWorkshopPath', path)
+      await addKnownWorkshop(path)
+      const folio = await ensureTodayFolio(path)
+      const content = await readNote(folio.path)
+      setActiveNote(folio)
+      setNoteContent(content)
+      await setPreference('lastNotePath', folio.path)
+    } catch (err) {
+      console.error('Failed to switch workshop:', err)
+    }
+  }
+
+  const handleNoteDeleted = async (note: NoteFile) => {
+    const ws = workshopRef.current
+    if (!ws) return
+
+    if (activeNoteRef.current?.path === note.path) {
+      try {
+        const folio = await ensureTodayFolio(ws.path)
+        const content = await readNote(folio.path)
+        setActiveNote(folio)
+        setNoteContent(content)
+        setSaveState('set')
+        await setPreference('lastNotePath', folio.path)
+      } catch (err) {
+        console.error('Failed to open folio after delete:', err)
+      }
+    }
+
+    await refreshWorkshop(ws.path)
+  }
+
+  const handleNoteMoved = async (oldNote: NoteFile, newNote: NoteFile) => {
+    if (activeNoteRef.current?.path === oldNote.path) {
+      setActiveNote(newNote)
+      activeNoteRef.current = newNote
+      await setPreference('lastNotePath', newNote.path)
+    }
+    const ws = workshopRef.current
+    if (ws) await refreshWorkshop(ws.path)
+  }
+
+  const handleRenamed = async (oldNote: NoteFile, newNote: NoteFile, humanTitle?: string) => {
+    clearNoteTitle(oldNote.path)
+    if (humanTitle) setNoteTitle(newNote.path, humanTitle)
+    if (activeNoteRef.current?.path === oldNote.path) {
+      setActiveNote(newNote)
+      activeNoteRef.current = newNote
+      await setPreference('lastNotePath', newNote.path)
+    }
+    const ws = workshopRef.current
+    if (ws) await refreshWorkshop(ws.path)
+  }
 
   const handleOpen = async () => {
     const selected = await open({
@@ -291,13 +467,12 @@ export default function App() {
   const handleContentChange = (content: string) => {
     setSaveState('setting')
     pendingContentRef.current = content
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current)
-    }
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(async () => {
       if (!activeNoteRef.current) return
       try {
         await writeNote(activeNoteRef.current.path, content)
+        invalidateSignalCache(activeNoteRef.current.path)
         setSaveState('set')
         pendingContentRef.current = null
       } catch (err) {
@@ -307,11 +482,56 @@ export default function App() {
     }, 800)
   }
 
+  const handleTitleChange = async (newTitle: string) => {
+    const ws = workshopRef.current
+    const note = activeNoteRef.current
+    if (!ws || !note) return
+    if (note.shelf.includes('folio')) return
+
+    try {
+      const renamed = await renameNoteOnDisk(note, newTitle, ws.path)
+      if (!renamed) return
+
+      setNoteTitle(renamed.path, newTitle)
+      setActiveNote(renamed)
+      activeNoteRef.current = renamed
+      await setPreference('lastNotePath', renamed.path)
+      await refreshWorkshop(ws.path)
+    } catch (err) {
+      console.error('Failed to rename note:', err)
+    }
+  }
+
+  // Promote: create a new floor note with scratch entry content, insert marker
+  const handlePromote = async (content: string, insertAfterPos: number) => {
+    const ws = workshopRef.current
+    if (!ws) return
+    try {
+      // Insert > ~~promoted~~ marker into scratch at the given position
+      editorRef.current?.insertAt(insertAfterPos, '> ~~promoted~~\n')
+
+      // Create a new floor note with the entry content
+      const note = await createNewNote(ws.path, [])
+      await writeNote(note.path, content)
+
+      setActiveNote(note)
+      setNoteContent(content)
+      setSaveState('set')
+      setIsNewNote(true)
+      await setPreference('lastNotePath', note.path)
+      await refreshWorkshop(ws.path)
+    } catch (err) {
+      console.error('Failed to promote scratch entry:', err)
+    }
+  }
+
   if (loading) return null
 
   if (!workshopOpen || !workshop) {
     return <EmptyState onOpen={handleOpen} />
   }
+
+  const isScratch = activeNote?.shelf.length === 0 && activeNote?.name === 'scratch'
 
   return (
     <div className="app">
@@ -321,18 +541,48 @@ export default function App() {
         onNoteSelect={handleNoteSelect}
         onTodayFolio={handleTodayFolio}
         workshop={workshop}
+        onNoteDeleted={handleNoteDeleted}
+        onNoteMoved={handleNoteMoved}
+        onRenamed={handleRenamed}
+        onRefresh={async () => { await refreshWorkshop(workshop.path) }}
+        noteTitles={noteTitles}
       />
+
       <Editor
+        ref={editorRef}
         note={activeNote ? {
-          title: formatNoteTitle(activeNote),
+          title: noteTitles.get(activeNote.path) ?? formatNoteTitle(activeNote),
           path: activeNote.path,
           content: noteContent || '',
           meta: formatNoteMeta(activeNote),
         } : DEMO_NOTE}
         onNavOpen={() => setNavOpen(true)}
         onContentChange={handleContentChange}
+        onTitleChange={activeNote && !activeNote.shelf.includes('folio') && activeNote.name !== 'scratch'
+          ? handleTitleChange
+          : undefined
+        }
         saveState={saveState}
-        soundEnabled={true}
+        soundEnabled={soundEnabled}
+        pasteIntentEnabled={pasteIntentEnabled}
+        isScratch={isScratch ?? false}
+        isNewNote={isNewNote}
+        onNewNoteDone={() => setIsNewNote(false)}
+        onPromote={handlePromote}
+      />
+
+      {showScratchToast && (
+        <div className={`gv-toast ${toastDismissing ? 'dismissing' : ''}`}>
+          your work is always saved. &nbsp; ⌘S opens a new scratch entry.
+        </div>
+      )}
+
+      <Prefs
+        open={prefsOpen}
+        onClose={() => setPrefsOpen(false)}
+        onWorkshopChange={handleWorkshopChange}
+        onSoundChange={setSoundEnabled}
+        onPasteIntentChange={setPasteIntentEnabled}
       />
     </div>
   )

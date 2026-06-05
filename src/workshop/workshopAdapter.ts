@@ -30,8 +30,7 @@ export interface Workshop {
 export async function loadWorkshop(rootPath: string): Promise<Workshop> {
   const name = rootPath.split('/').pop() || 'Workshop'
 
-  // Ensure standard folders exist
-  await ensureFolder(`${rootPath}/scratch`)
+  // Ensure folio folder exists; scratch is now a root file, not a folder
   await ensureFolder(`${rootPath}/folio`)
 
   const allNotes: NoteFile[] = []
@@ -51,28 +50,23 @@ export async function loadWorkshop(rootPath: string): Promise<Workshop> {
     const fullPath = `${rootPath}/${entry.name}`
 
     if (entry.isDirectory) {
-      if (entry.name === 'scratch') {
-        // Load scratch notes
-        const notes = await loadNotesFromFolder(fullPath, ['scratch'])
-        scratch.push(...notes)
-        allNotes.push(...notes)
-      } else if (entry.name === 'folio') {
+      if (entry.name === 'folio') {
         // Load daily folios
         const notes = await loadNotesFromFolder(fullPath, ['folio'])
         folio.push(...notes)
         allNotes.push(...notes)
       } else {
-        // Regular shelf
+        // Regular shelf (includes legacy 'scratch' folder if it exists)
         const shelf = await loadShelf(fullPath, entry.name, [entry.name])
         shelves.push(shelf)
         allNotes.push(...shelf.notes)
       }
     } else if (entry.name.endsWith('.md')) {
-      // Notes in root
-      const note: NoteFile = {
-        name: entry.name.replace('.md', ''),
-        path: fullPath,
-        shelf: [],
+      const noteName = entry.name.replace('.md', '')
+      const note: NoteFile = { name: noteName, path: fullPath, shelf: [] }
+      if (noteName === 'scratch') {
+        // scratch.md lives at workshop root with empty shelf
+        scratch.push(note)
       }
       allNotes.push(note)
     }
@@ -194,6 +188,15 @@ export async function ensureTodayFolio(workshopPath: string): Promise<NoteFile> 
   }
 
   return { name, path: fullPath, shelf: ['folio'] }
+}
+
+// Ensure scratch.md exists at workshop root; return its NoteFile
+export async function ensureScratch(workshopPath: string): Promise<NoteFile> {
+  const path = `${workshopPath}/scratch.md`
+  if (!await exists(path)) {
+    await writeTextFile(path, '')
+  }
+  return { name: 'scratch', path, shelf: [] }
 }
 
 // Helper: create a folder if it doesn't exist

@@ -1,5 +1,5 @@
 const SOUND_COUNT = 6
-const MIN_INTERVAL = 80
+const MIN_INTERVAL = 30
 
 class SoundQueue {
   private queue: number[] = []

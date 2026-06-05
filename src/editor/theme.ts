@@ -30,6 +30,20 @@ const gravatisTheme = EditorView.theme({
   '.cm-line': {
     padding: '0',
   },
+  // Standard blockquote line
+
+'.cm-gravitas-quote': {
+  borderLeft: '2px solid var(--prov-quote-border)',
+  paddingLeft: '16px !important',
+  fontStyle: 'italic',
+},
+
+'.cm-gravitas-process': {
+  borderLeft: '2px solid var(--accent-soft)',
+  paddingLeft: '16px !important',
+  fontStyle: 'normal',
+  background: 'rgba(196, 184, 154, 0.1)',
+},
 })
 
 const gravatisHighlight = HighlightStyle.define([
@@ -44,7 +58,7 @@ const gravatisHighlight = HighlightStyle.define([
   { tag: t.punctuation, color: 'var(--text-dimmer)' },
   { tag: t.meta, color: 'var(--text-dimmer)' },
   { tag: t.comment, color: 'var(--text-dimmer)', fontStyle: 'italic' },
-  { tag: t.quote, color: 'var(--text-dim)', fontStyle: 'italic' },
+  { tag: t.quote, color: 'var(--text-dim)' },
 ])
 
 export const gravitas = [gravatisTheme, syntaxHighlighting(gravatisHighlight)]

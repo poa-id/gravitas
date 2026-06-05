@@ -1,10 +1,37 @@
 import { EditorView, ViewPlugin, ViewUpdate, Decoration, DecorationSet } from '@codemirror/view'
 import { RangeSetBuilder } from '@codemirror/state'
 
-const activeLineDeco = Decoration.line({ class: 'cm-gravitas-active' })
-const inactiveLineDeco = Decoration.line({ class: 'cm-gravitas-inactive' })
+// Opacity falloff by logical line distance from cursor
+// Distance 0 = cursor line, 1 = adjacent, etc.
+const OPACITY_BY_DISTANCE: Record<number, number> = {
+  0: 1.0,
+  1: 0.9,
+  2: 0.82,
+  3: 0.7,
+}
+const OPACITY_FAR = 0.6 // anything beyond distance 3
 
-export const activeLineScaling = ViewPlugin.fromClass(
+function opacityForDistance(dist: number): number {
+  return OPACITY_BY_DISTANCE[dist] ?? OPACITY_FAR
+}
+
+// Cache decoration instances — one per distinct opacity value
+const decoCache = new Map<number, Decoration>()
+
+function lineDecoration(opacity: number): Decoration {
+  const key = Math.round(opacity * 100)
+  if (!decoCache.has(key)) {
+    decoCache.set(
+      key,
+      Decoration.line({
+        attributes: { style: `opacity: ${opacity}` },
+      })
+    )
+  }
+  return decoCache.get(key)!
+}
+
+export const focusGradient = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet
 
@@ -20,16 +47,13 @@ export const activeLineScaling = ViewPlugin.fromClass(
 
     buildDecorations(view: EditorView): DecorationSet {
       const builder = new RangeSetBuilder<Decoration>()
-      const selection = view.state.selection.main
-      const activeLine = view.state.doc.lineAt(selection.head)
+      const activeLine = view.state.doc.lineAt(view.state.selection.main.head)
 
       for (let i = 1; i <= view.state.doc.lines; i++) {
         const line = view.state.doc.line(i)
-        if (line.number === activeLine.number) {
-          builder.add(line.from, line.from, activeLineDeco)
-        } else {
-          builder.add(line.from, line.from, inactiveLineDeco)
-        }
+        const dist = Math.abs(line.number - activeLine.number)
+        const opacity = opacityForDistance(dist)
+        builder.add(line.from, line.from, lineDecoration(opacity))
       }
 
       return builder.finish()

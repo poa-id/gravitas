@@ -82,3 +82,37 @@ body::before {
   background: rgba(122, 106, 74, 0.18);
   color: var(--text);
 }
+
+/* ── One-time scratch toast ─────────────────────────────────────────── */
+.gv-toast {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: var(--col-width, 548px);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: var(--font-prose);
+  font-size: 13px;
+  padding: 10px 16px;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 1000;
+  opacity: 0;
+  animation: gv-toast-in 200ms ease forwards;
+}
+
+.gv-toast.dismissing {
+  animation: gv-toast-out 200ms ease forwards;
+}
+
+@keyframes gv-toast-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes gv-toast-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
