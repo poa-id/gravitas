@@ -104,6 +104,7 @@ export default function Nav({
 
   // Shelves are collapsed by default; paths added here are expanded
   const [expandedShelves, setExpandedShelves] = useState<Set<string>>(new Set())
+  const [folioExpanded, setFolioExpanded] = useState(false)
 
   // Shelf inline rename
   const [renamingShelf, setRenamingShelf] = useState<string | null>(null) // shelf.path
@@ -508,23 +509,35 @@ export default function Nav({
 
               {/* Folio */}
               <div className="gv-nav-section">
-                <div className="gv-nav-section-label">Folio</div>
                 <div
-                  className="gv-nav-file"
-                  onClick={() => { onTodayFolio(); onClose() }}
+                  className="gv-nav-section-label gv-nav-shelf-header"
+                  onClick={() => setFolioExpanded(prev => !prev)}
                 >
-                  <span className="gv-nav-dot folio" />
-                  <span className="gv-nav-filename">Today</span>
-                  <span className="gv-nav-date">
-                    {new Date().toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+                  <span className="gv-nav-shelf-name">
+                    <span className="gv-nav-chevron">{folioExpanded ? '▾' : '▸'}</span>
+                    Folio
                   </span>
                 </div>
-                {workshop.folio
-                  .filter(n => n.name !== todayStr)
-                  .slice(0, 5)
-                  .map(note =>
-                    renderNoteRow(note, 'folio', formatFolioName(note.name))
-                  )}
+                {folioExpanded && (
+                  <>
+                    <div
+                      className="gv-nav-file"
+                      onClick={() => { onTodayFolio(); onClose() }}
+                    >
+                      <span className="gv-nav-dot folio" />
+                      <span className="gv-nav-filename">Today</span>
+                      <span className="gv-nav-date">
+                        {new Date().toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+                    {workshop.folio
+                      .filter(n => n.name !== todayStr)
+                      .slice(0, 5)
+                      .map(note =>
+                        renderNoteRow(note, 'folio', formatFolioName(note.name))
+                      )}
+                  </>
+                )}
               </div>
 
               {/* Workshop floor notes */}
