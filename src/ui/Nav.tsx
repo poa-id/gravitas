@@ -482,134 +482,141 @@ export default function Nav({
             </div>
           )}
 
-          {/* ── Two-column layout ── */}
+          {/* ── Single-column layout ── */}
           {!filtered && (
-            <div className="gv-nav-cols">
+            <div className="gv-nav-single">
 
-              {/* Left col — scratch + folio */}
-              <div className="gv-nav-col">
-
-                {workshop.scratch.length > 0 && (
-                  <div className="gv-nav-section">
-                    <div className="gv-nav-section-label">Scratch</div>
-                    {workshop.scratch.map(note =>
-                      renderNoteRow(note, 'scratch', 'scratch')
-                    )}
-                  </div>
-                )}
-
-                <div className="gv-nav-section">
-                  <div className="gv-nav-section-label">Folio</div>
-
-                  <div
-                    className="gv-nav-file"
-                    onClick={() => { onTodayFolio(); onClose() }}
-                  >
-                    <span className="gv-nav-dot folio" />
-                    <span className="gv-nav-filename">Today</span>
-                  </div>
-
-                  {workshop.folio
-                    .filter(n => n.name !== todayStr)
-                    .slice(0, 5)
-                    .map(note =>
-                      renderNoteRow(note, 'folio', formatFolioName(note.name))
-                    )}
-                </div>
-
-                {/* Workshop floor notes */}
+              {/* Scratch — always shown */}
+              <div className="gv-nav-section">
+                <div className="gv-nav-section-label">Scratch</div>
                 {(() => {
-                  const floorNotes = workshop.allNotes.filter(n =>
-                    n.shelf.length === 0 && n.name !== 'scratch'
-                  )
-                  return floorNotes.length > 0 ? (
-                    <div className="gv-nav-section">
-                      <div className="gv-nav-section-label">Notes</div>
-                      {floorNotes.map(note =>
-                        renderNoteRow(note, '', formatNoteName(note.name))
-                      )}
-                    </div>
-                  ) : null
+                  const scratchNote = workshop.scratch.length > 0
+                    ? workshop.scratch[0]
+                    : workshop.allNotes.find(n => n.name === 'scratch' && n.shelf.length === 0)
+                  return scratchNote
+                    ? renderNoteRow(scratchNote, 'scratch', 'scratch', false)
+                    : (
+                      <div className="gv-nav-file gv-nav-empty-action"
+                        onClick={() => { onTodayFolio(); onClose() }}>
+                        <span className="gv-nav-dot scratch" />
+                        <span className="gv-nav-filename">scratch</span>
+                        <span className="gv-nav-date">⌘S</span>
+                      </div>
+                    )
                 })()}
-
               </div>
 
-              {/* Right col — shelves + loose + new shelf */}
-              <div className="gv-nav-col">
+              {/* Folio */}
+              <div className="gv-nav-section">
+                <div className="gv-nav-section-label">Folio</div>
+                <div
+                  className="gv-nav-file"
+                  onClick={() => { onTodayFolio(); onClose() }}
+                >
+                  <span className="gv-nav-dot folio" />
+                  <span className="gv-nav-filename">Today</span>
+                  <span className="gv-nav-date">
+                    {new Date().toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+                  </span>
+                </div>
+                {workshop.folio
+                  .filter(n => n.name !== todayStr)
+                  .slice(0, 5)
+                  .map(note =>
+                    renderNoteRow(note, 'folio', formatFolioName(note.name))
+                  )}
+              </div>
 
+              {/* Workshop floor notes */}
+              {(() => {
+                const floorNotes = workshop.allNotes.filter(n =>
+                  n.shelf.length === 0 && n.name !== 'scratch'
+                )
+                return floorNotes.length > 0 ? (
+                  <div className="gv-nav-section">
+                    <div className="gv-nav-section-label">Notes</div>
+                    {floorNotes.map(note =>
+                      renderNoteRow(note, '', formatNoteName(note.name))
+                    )}
+                  </div>
+                ) : null
+              })()}
+
+              {/* Shelves */}
+              {workshop.shelves.length > 0 && (
                 <div className="gv-nav-section">
                   <div className="gv-nav-section-label">Shelves</div>
                 </div>
+              )}
 
-                {workshop.shelves.map(shelf => {
-                  const isCollapsed = !expandedShelves.has(shelf.path)
-                  const shelfKey = shelf.path
-                  const isDragOver = dragOverShelf === shelfKey
-                  const isRenamingThisShelf = renamingShelf === shelf.path
-                  return (
-                    <div key={shelf.path} className="gv-nav-section">
-                      <div
-                        className={`gv-nav-section-label gv-nav-shelf-header ${isDragOver ? 'gv-drag-over' : ''}`}
-                        onClick={() => { if (!isRenamingThisShelf) toggleShelf(shelf.path) }}
-                        onContextMenu={(e) => handleShelfContextMenu(e, shelf)}
-                        onDragEnter={(e) => handleShelfDragEnter(e, shelfKey)}
-                        onDragOver={handleShelfDragOver}
-                        onDragLeave={(e) => handleShelfDragLeave(e, shelfKey)}
-                        onDrop={(e) => handleShelfDrop(e, [shelf.name], shelfKey)}
-                      >
-                        {isRenamingThisShelf ? (
-                          <input
-                            ref={renameShelfInputRef}
-                            className="gv-nav-rename-input"
-                            value={renameShelfValue}
-                            onChange={e => setRenameShelfValue(e.target.value)}
-                            onKeyDown={handleRenameShelfKeyDown}
-                            onBlur={commitRenameShelf}
-                            onClick={e => e.stopPropagation()}
-                          />
-                        ) : (
-                          <span className="gv-nav-shelf-name">
-                            <span className="gv-nav-chevron">{isCollapsed ? '▸' : '▾'}</span>
-                            {formatNoteName(shelf.name)}
-                          </span>
-                        )}
-                      </div>
-                      {!isCollapsed && !isRenamingThisShelf && (
-                        <>
-                          {shelf.notes.slice(0, 6).map(note =>
-                            renderNoteRow(note, '', formatNoteName(note.name))
-                          )}
-                          {shelf.notes.length === 0 && (
-                            <div className="gv-nav-empty">Empty shelf.</div>
-                          )}
-                        </>
+              {workshop.shelves.map(shelf => {
+                const isCollapsed = !expandedShelves.has(shelf.path)
+                const shelfKey = shelf.path
+                const isDragOver = dragOverShelf === shelfKey
+                const isRenamingThisShelf = renamingShelf === shelf.path
+                return (
+                  <div key={shelf.path} className="gv-nav-section">
+                    <div
+                      className={`gv-nav-section-label gv-nav-shelf-header ${isDragOver ? 'gv-drag-over' : ''}`}
+                      onClick={() => { if (!isRenamingThisShelf) toggleShelf(shelf.path) }}
+                      onContextMenu={(e) => handleShelfContextMenu(e, shelf)}
+                      onDragEnter={(e) => handleShelfDragEnter(e, shelfKey)}
+                      onDragOver={handleShelfDragOver}
+                      onDragLeave={(e) => handleShelfDragLeave(e, shelfKey)}
+                      onDrop={(e) => handleShelfDrop(e, [shelf.name], shelfKey)}
+                    >
+                      {isRenamingThisShelf ? (
+                        <input
+                          ref={renameShelfInputRef}
+                          className="gv-nav-rename-input"
+                          value={renameShelfValue}
+                          onChange={e => setRenameShelfValue(e.target.value)}
+                          onKeyDown={handleRenameShelfKeyDown}
+                          onBlur={commitRenameShelf}
+                          onClick={e => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="gv-nav-shelf-name">
+                          <span className="gv-nav-chevron">{isCollapsed ? '▸' : '▾'}</span>
+                          {formatNoteName(shelf.name)}
+                        </span>
                       )}
                     </div>
-                  )
-                })}
+                    {!isCollapsed && !isRenamingThisShelf && (
+                      <>
+                        {shelf.notes.slice(0, 6).map(note =>
+                          renderNoteRow(note, '', formatNoteName(note.name))
+                        )}
+                        {shelf.notes.length === 0 && (
+                          <div className="gv-nav-empty">Empty shelf.</div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )
+              })}
 
-                {/* New shelf */}
-                <div className="gv-nav-add-shelf-row">
-                  {newShelfMode ? (
-                    <input
-                      ref={newShelfInputRef}
-                      className="gv-nav-new-shelf-input"
-                      placeholder="Shelf name…"
-                      value={newShelfName}
-                      onChange={e => setNewShelfName(e.target.value)}
-                      onKeyDown={handleNewShelfKeyDown}
-                      onBlur={commitNewShelf}
-                    />
-                  ) : (
-                    <button
-                      className="gv-nav-add-shelf-btn"
-                      onClick={() => setNewShelfMode(true)}
-                      title="New shelf"
-                    >+</button>
-                  )}
-                </div>
-
+              {/* New shelf */}
+              <div className="gv-nav-add-shelf-row">
+                {newShelfMode ? (
+                  <input
+                    ref={newShelfInputRef}
+                    className="gv-nav-new-shelf-input"
+                    placeholder="Shelf name…"
+                    value={newShelfName}
+                    onChange={e => setNewShelfName(e.target.value)}
+                    onKeyDown={handleNewShelfKeyDown}
+                    onBlur={commitNewShelf}
+                  />
+                ) : (
+                  <button
+                    className="gv-nav-add-shelf-btn"
+                    onClick={() => setNewShelfMode(true)}
+                    title="New shelf"
+                  >+</button>
+                )}
               </div>
+
             </div>
           )}
         </div>

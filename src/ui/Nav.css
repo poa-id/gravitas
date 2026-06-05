@@ -112,6 +112,11 @@
   gap: 0 24px;
 }
 
+.gv-nav-single {
+  display: flex;
+  flex-direction: column;
+}
+
 .gv-nav-section { margin-bottom: 20px; }
 
 .gv-nav-section-label {
