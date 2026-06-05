@@ -12,7 +12,7 @@ import { playKeySound } from './plugins/typewriterSound'
 import { markdownRenderPlugin } from './plugins/markdownRender'
 import { createPasteIntentPlugin } from './plugins/pasteIntent'
 import { processBlockPlugin } from './plugins/processBlock'
-import { createScratchPromotePlugin } from './plugins/scratchPromote'
+import { createScratchPromotePlugin, scratchReadonlyExtension } from './plugins/scratchPromote'
 import './pasteBanner.css'
 import './Editor.css'
 
@@ -78,6 +78,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(function Editor({
   const activeKeyRef = useRef<string>('')
   const soundEnabledRef = useRef(soundEnabled)
   const pasteIntentEnabledRef = useRef(pasteIntentEnabled)
+  const isScratchRef = useRef(isScratch)
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
   const titleInputRef = useRef<HTMLInputElement>(null)
@@ -87,6 +88,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(function Editor({
 
   useEffect(() => { soundEnabledRef.current = soundEnabled }, [soundEnabled])
   useEffect(() => { pasteIntentEnabledRef.current = pasteIntentEnabled }, [pasteIntentEnabled])
+  useEffect(() => { isScratchRef.current = isScratch }, [isScratch])
   useEffect(() => { onPromoteRef.current = onPromote }, [onPromote])
 
   // Expose imperative handles to parent (App)
@@ -169,6 +171,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(function Editor({
         focusGradient,
         ...(pastePluginRef.current ? [pastePluginRef.current] : []),
         ...(promotePluginRef.current ? [promotePluginRef.current] : []),
+        scratchReadonlyExtension(() => isScratchRef.current),
         ...typewriterExtensions,
         EditorView.domEventHandlers({
           keydown(e) {

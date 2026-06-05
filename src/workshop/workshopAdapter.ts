@@ -165,9 +165,7 @@ export async function createNote(
 
   const fileName = `${name}.md`
   const fullPath = `${folderPath}/${fileName}`
-  const initialContent = `# ${name}\n\n`
-
-  await writeTextFile(fullPath, initialContent)
+  await writeTextFile(fullPath, '')
 
   return { name, path: fullPath, shelf }
 }

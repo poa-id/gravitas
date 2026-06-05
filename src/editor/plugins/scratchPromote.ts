@@ -1,5 +1,5 @@
 import { ViewPlugin, DecorationSet, ViewUpdate, EditorView, Decoration } from '@codemirror/view'
-import { RangeSetBuilder } from '@codemirror/state'
+import { RangeSetBuilder, EditorState, Transaction } from '@codemirror/state'
 import type { RefObject } from 'react'
 
 // ── Decoration types ───────────────────────────────────────────────────────
@@ -27,7 +27,6 @@ function parseEntries(doc: EditorView['state']['doc']): ScratchEntry[] {
     const tsLineNo = i + 1
     if (tsLineNo > doc.lines) continue
     const tsText = doc.line(tsLineNo).text
-    // Timestamp lines look like: *Jun 5, 2026 · 10:30 AM*
     if (!tsText.startsWith('*') || !tsText.endsWith('*')) continue
 
     const markerLineNo = tsLineNo + 1
@@ -51,6 +50,29 @@ function nextDividerLineNo(entries: ScratchEntry[], afterDivider: number, totalL
   return totalLines + 1
 }
 
+// ── Read-only filter for divider and timestamp lines ───────────────────────
+
+export function scratchReadonlyExtension(isScratchFn: () => boolean) {
+  return EditorState.transactionFilter.of((tr: Transaction) => {
+    if (!isScratchFn() || !tr.docChanged) return tr
+    let blocked = false
+    tr.changes.iterChanges((fromA, toA) => {
+      const doc = tr.startState.doc
+      const fromLine = doc.lineAt(fromA)
+      const toLine = doc.lineAt(toA)
+      for (let ln = fromLine.number; ln <= toLine.number; ln++) {
+        if (ln > doc.lines) break
+        const text = doc.line(ln).text.trim()
+        if (text === '---' || (/^\*[^*]+\*$/.test(text))) {
+          blocked = true
+          break
+        }
+      }
+    })
+    return blocked ? [] : tr
+  })
+}
+
 // ── Plugin factory ─────────────────────────────────────────────────────────
 
 export function createScratchPromotePlugin(
@@ -62,6 +84,8 @@ export function createScratchPromotePlugin(
       entries: ScratchEntry[] = []
       affordanceEl: HTMLElement
       hoveredDividerLineNo: number = -1
+      hideTimer: ReturnType<typeof setTimeout> | null = null
+      affordanceHovered: boolean = false
 
       constructor(readonly view: EditorView) {
         this.entries = parseEntries(view.state.doc)
@@ -71,7 +95,18 @@ export function createScratchPromotePlugin(
         this.affordanceEl.className = 'gv-promote'
         this.affordanceEl.textContent = '↑ promote'
         document.body.appendChild(this.affordanceEl)
+
         this.affordanceEl.addEventListener('click', () => this.handlePromoteClick())
+
+        // Keep affordance alive when mouse moves onto it
+        this.affordanceEl.addEventListener('mouseenter', () => {
+          this.affordanceHovered = true
+          if (this.hideTimer) { clearTimeout(this.hideTimer); this.hideTimer = null }
+        })
+        this.affordanceEl.addEventListener('mouseleave', () => {
+          this.affordanceHovered = false
+          this.scheduleHide()
+        })
 
         this.onMouseMove = this.onMouseMove.bind(this)
         this.onMouseLeave = this.onMouseLeave.bind(this)
@@ -95,11 +130,9 @@ export function createScratchPromotePlugin(
           if (!entry.promoted || entry.markerLineNo < 1) continue
           if (entry.markerLineNo > doc.lines) continue
 
-          // Hide the > ~~promoted~~ line
           const markerFrom = doc.line(entry.markerLineNo).from
           ranges.push({ from: markerFrom, deco: promotedMarkerDeco })
 
-          // Style content lines (first line struck-through, rest dimmed)
           const contentStartLineNo = entry.markerLineNo + 1
           const contentEndLineNo = nextDividerLineNo(this.entries, entry.dividerLineNo, doc.lines) - 1
 
@@ -111,7 +144,6 @@ export function createScratchPromotePlugin(
           }
         }
 
-        // RangeSetBuilder requires sorted order
         ranges.sort((a, b) => a.from - b.from)
         for (const { from, deco } of ranges) {
           builder.add(from, from, deco)
@@ -121,25 +153,27 @@ export function createScratchPromotePlugin(
       }
 
       onMouseMove(e: MouseEvent) {
-        if (!onPromoteRef.current) { this.hideAffordance(); return }
+        if (!onPromoteRef.current) { this.scheduleHide(); return }
 
         const pos = this.view.posAtCoords({ x: e.clientX, y: e.clientY })
-        if (pos === null) { this.hideAffordance(); return }
+        if (pos === null) { this.scheduleHide(); return }
 
         const lineNo = this.view.state.doc.lineAt(pos).number
 
-        // Only show affordance on divider or timestamp lines of NON-promoted entries
         const entry = this.entries.find(
           en => !en.promoted && (en.dividerLineNo === lineNo || en.timestampLineNo === lineNo)
         )
 
-        if (!entry) { this.hideAffordance(); return }
+        if (!entry) { this.scheduleHide(); return }
+
+        // Cancel any pending hide
+        if (this.hideTimer) { clearTimeout(this.hideTimer); this.hideTimer = null }
 
         this.hoveredDividerLineNo = entry.dividerLineNo
 
         const lineFrom = this.view.state.doc.line(entry.dividerLineNo).from
         const coords = this.view.coordsAtPos(lineFrom)
-        if (!coords) { this.hideAffordance(); return }
+        if (!coords) { this.scheduleHide(); return }
 
         this.affordanceEl.style.top = `${coords.top + window.scrollY}px`
         this.affordanceEl.style.left = `${coords.left - 72}px`
@@ -147,12 +181,20 @@ export function createScratchPromotePlugin(
       }
 
       onMouseLeave() {
-        this.hideAffordance()
+        this.scheduleHide()
       }
 
-      hideAffordance() {
-        this.affordanceEl.classList.remove('visible')
-        this.hoveredDividerLineNo = -1
+      scheduleHide() {
+        if (this.affordanceHovered) return
+        if (this.hideTimer) return
+        // 120ms grace period — enough to move from editor to affordance
+        this.hideTimer = setTimeout(() => {
+          if (!this.affordanceHovered) {
+            this.affordanceEl.classList.remove('visible')
+            this.hoveredDividerLineNo = -1
+          }
+          this.hideTimer = null
+        }, 120)
       }
 
       handlePromoteClick() {
@@ -171,17 +213,20 @@ export function createScratchPromotePlugin(
         while (lines.length > 0 && lines[lines.length - 1].trim() === '') lines.pop()
         const content = lines.join('\n')
 
-        // insertAfterPos is the end of the timestamp line (right after \n on that line)
         const tsLine = doc.line(entry.timestampLineNo)
-        const insertAfterPos = tsLine.to + 1  // position at start of next line
+        const insertAfterPos = tsLine.to + 1
 
         onPromoteRef.current(content, insertAfterPos)
-        this.hideAffordance()
+
+        this.affordanceHovered = false
+        this.affordanceEl.classList.remove('visible')
+        this.hoveredDividerLineNo = -1
       }
 
       destroy() {
         this.view.dom.removeEventListener('mousemove', this.onMouseMove)
         this.view.dom.removeEventListener('mouseleave', this.onMouseLeave)
+        if (this.hideTimer) clearTimeout(this.hideTimer)
         this.affordanceEl.remove()
       }
     },
