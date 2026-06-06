@@ -153,8 +153,6 @@ export default function Nav({
     setSignals(new Map())
   }, [workshop.path])
 
-  if (!open) return null
-
   // ── Context menu ──────────────────────────────────────────────────────────
 
   const handleContextMenu = async (e: React.MouseEvent, note: NoteFile) => {
@@ -284,6 +282,9 @@ export default function Nav({
       renameShelfInputRef.current.select()
     }
   }, [renamingShelf])
+
+  // ── Early return after all hooks ──────────────────────────────────────────
+  if (!open) return null
 
   // ── Shelf collapse (collapsed by default — add to expanded set to open) ───
 
