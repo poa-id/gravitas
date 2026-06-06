@@ -120,14 +120,18 @@
 .gv-promote:hover { color: var(--text); }
 
 /* Promoted entry decorations */
-.gv-promoted-marker { display: none; }
+.gv-promoted-marker { display: none !important; }
 
-.gv-promoted-first {
-  text-decoration: line-through;
+/* First content line of a promoted entry — struck through */
+.cm-line.gv-promoted-first {
   opacity: 0.45;
+  text-decoration: line-through;
+  text-decoration-color: var(--text-dimmer);
+  text-decoration-thickness: 1px;
 }
 
-.gv-promoted-entry { opacity: 0.45; }
+/* All other lines of a promoted entry — dimmed */
+.cm-line.gv-promoted-entry { opacity: 0.45; }
 
 .gv-col {
   width: 600px;

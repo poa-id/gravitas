@@ -51,6 +51,8 @@ function nextDividerLineNo(entries: ScratchEntry[], afterDivider: number, totalL
 }
 
 // ── Read-only filter for divider and timestamp lines ───────────────────────
+// Blocks character-level edits TO protected lines.
+// Allows multi-line deletions SPANNING protected lines (whole-entry removal).
 
 export function scratchReadonlyExtension(isScratchFn: () => boolean) {
   return EditorState.transactionFilter.of((tr: Transaction) => {
@@ -60,13 +62,14 @@ export function scratchReadonlyExtension(isScratchFn: () => boolean) {
       const doc = tr.startState.doc
       const fromLine = doc.lineAt(fromA)
       const toLine = doc.lineAt(toA)
-      for (let ln = fromLine.number; ln <= toLine.number; ln++) {
-        if (ln > doc.lines) break
-        const text = doc.line(ln).text.trim()
-        if (text === '---' || (/^\*[^*]+\*$/.test(text))) {
-          blocked = true
-          break
-        }
+
+      // If the change spans multiple lines, allow it (whole-entry deletion)
+      if (toLine.number > fromLine.number) return
+
+      // Single-line change: block if the line is protected
+      const text = fromLine.text.trim()
+      if (text === '---' || /^\*[^*]+\*$/.test(text)) {
+        blocked = true
       }
     })
     return blocked ? [] : tr

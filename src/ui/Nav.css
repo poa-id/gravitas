@@ -43,69 +43,41 @@
 .gv-nav-close {
   font-size: 11px;
   color: var(--text-dimmer);
-  font-family: var(--font-ui);
+  font-family: var(--font-prose);
   cursor: pointer;
   letter-spacing: 0.04em;
   transition: color 0.15s;
 }
-
 .gv-nav-close:hover { color: var(--text); }
 
 .gv-nav-body {
   flex: 1;
-  padding: 20px 28px;
+  padding: 16px 28px 28px;
   overflow-y: auto;
 }
 
+/* ── Search ──────────────────────────────────────────────────────── */
 .gv-nav-search {
   width: 100%;
   background: var(--bg-subtle);
   border: 1px solid var(--border);
   border-radius: 2px;
-  padding: 8px 12px;
+  padding: 7px 12px;
   font-family: var(--font-prose);
   font-size: 13px;
   color: var(--text);
   outline: none;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
   transition: border-color 0.15s, background 0.15s;
+  box-sizing: border-box;
 }
-
 .gv-nav-search::placeholder { color: var(--text-dimmer); }
 .gv-nav-search:focus {
   border-color: var(--accent-soft);
   background: var(--bg);
 }
 
-.gv-nav-scratch {
-  display: flex;
-  align-items: center;
-  padding: 8px 10px;
-  background: var(--bg-subtle);
-  border-radius: 2px;
-  cursor: pointer;
-  margin-bottom: 20px;
-  transition: background 0.15s;
-}
-
-.gv-nav-scratch:hover { background: var(--bg-surface); }
-
-.gv-nav-scratch-label {
-  font-size: 12.5px;
-  color: var(--text);
-  font-family: var(--font-prose);
-  flex: 1;
-}
-
-.gv-nav-scratch-count {
-  font-size: 10px;
-  color: var(--accent);
-  background: var(--bg-surface);
-  padding: 1px 7px;
-  border-radius: 2px;
-  font-family: var(--font-mono);
-}
-
+/* ── Single column layout ────────────────────────────────────────── */
 .gv-nav-cols {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -115,27 +87,83 @@
 .gv-nav-single {
   display: flex;
   flex-direction: column;
+  gap: 0;
 }
 
-.gv-nav-section { margin-bottom: 20px; }
+/* ── Section label — small, quiet, uppercase ─────────────────────── */
+.gv-nav-section {
+  margin-bottom: 16px;
+}
 
 .gv-nav-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dimmer);
+  font-family: var(--font-prose);
+  padding: 0 2px;
+  margin-bottom: 4px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  user-select: none;
 }
 
+/* ── Scratch — single tap target, feels like a notebook ─────────── */
+.gv-nav-scratch-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  margin: 0 -10px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.gv-nav-scratch-entry:hover {
+  background: var(--bg-subtle);
+}
+
+.gv-nav-scratch-icon {
+  font-size: 15px;
+  color: var(--text-dimmer);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.gv-nav-scratch-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.gv-nav-scratch-name {
+  font-size: 13px;
+  color: var(--text);
+  font-family: var(--font-prose);
+  line-height: 1.3;
+}
+
+.gv-nav-scratch-hint {
+  font-size: 10px;
+  color: var(--text-dimmer);
+  font-family: var(--font-prose);
+  letter-spacing: 0.02em;
+}
+
+/* ── Note row ────────────────────────────────────────────────────── */
 .gv-nav-file {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 6px;
+  padding: 3px 6px;
   margin: 0 -6px;
   border-radius: 2px;
   cursor: pointer;
   transition: background 0.1s;
 }
-
 .gv-nav-file:hover { background: var(--bg-subtle); }
 .gv-nav-file.active { background: var(--bg-surface); }
 
@@ -146,9 +174,8 @@
   background: var(--border);
   flex-shrink: 0;
 }
-
-.gv-nav-dot.piece { background: var(--link); }
-.gv-nav-dot.scratch { background: var(--text-dimmer); }
+.gv-nav-dot.folio  { background: var(--accent); }
+.gv-nav-dot.piece  { background: var(--link); }
 
 .gv-nav-filename {
   font-size: 12.5px;
@@ -163,83 +190,29 @@
 .gv-nav-date {
   font-size: 10px;
   color: var(--text-dimmer);
-  font-family: var(--font-ui);
+  font-family: var(--font-prose);
   flex-shrink: 0;
 }
 
-/* Wikilink styles — used by CM6 plugin */
-.gv-wikilink {
-  color: var(--link);
-  border-bottom: 1px solid var(--link-soft);
-  cursor: pointer;
-  font-family: var(--font-prose);
-}
-
-.gv-wikilink:hover {
-  color: var(--text);
-  border-bottom-color: var(--link);
-}
-
-/* Open question mark */
-.gv-question-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  font-size: 9px;
-  color: var(--text-dimmer);
-  font-family: var(--font-mono);
-  margin-right: 4px;
-  vertical-align: middle;
-  cursor: default;
-}
-
-.gv-nav-empty {
-  font-size: 11.5px;
-  color: var(--text-dimmer);
-  font-family: var(--font-prose);
-  font-style: italic;
-  padding: 4px 6px;
-}
-
-.gv-nav-inbox-count {
-  font-size: 10px;
-  color: var(--accent);
-  background: var(--bg-surface);
-  padding: 1px 7px;
-  border-radius: 2px;
-  font-family: var(--font-mono);
-}
-
-.gv-nav-dot.folio { background: var(--accent); }
-
-/* ── Shelf header (collapsible + drag target) ─────────────────────── */
+/* ── Shelf header (collapsible + drag target) ────────────────────── */
 .gv-nav-shelf-header {
   cursor: pointer;
   user-select: none;
   border-radius: 2px;
-  padding: 1px 4px;
+  padding: 2px 4px;
   margin: 0 -4px;
   transition: background 0.1s;
 }
-
-.gv-nav-shelf-header:hover {
-  background: var(--bg-subtle);
-}
-
+.gv-nav-shelf-header:hover { background: var(--bg-subtle); }
 .gv-nav-shelf-header.drop-target {
   background: var(--bg-surface);
   outline: 1px solid var(--accent-soft);
   outline-offset: -1px;
 }
-
 .gv-drag-over {
-  background: var(--bg-surface);
+  background: var(--bg-surface) !important;
   border-radius: 2px;
+  color: var(--text);
 }
 
 .gv-nav-shelf-name {
@@ -248,10 +221,10 @@
   gap: 5px;
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-dimmer);
-  font-family: var(--font-ui);
+  font-family: var(--font-prose);
 }
 
 .gv-nav-chevron {
@@ -259,6 +232,20 @@
   color: var(--text-dimmer);
   line-height: 1;
   flex-shrink: 0;
+}
+
+/* Shelf notes — tighter than floor notes */
+.gv-nav-shelf-notes .gv-nav-file {
+  padding: 2px 6px;
+}
+
+/* ── Empty / utility ─────────────────────────────────────────────── */
+.gv-nav-empty {
+  font-size: 11.5px;
+  color: var(--text-dimmer);
+  font-family: var(--font-prose);
+  font-style: italic;
+  padding: 2px 6px;
 }
 
 /* ── Inline rename input ─────────────────────────────────────────── */
@@ -276,9 +263,9 @@
   line-height: inherit;
 }
 
-/* ── New shelf controls ───────────────────────────────────────────── */
+/* ── New shelf controls ──────────────────────────────────────────── */
 .gv-nav-add-shelf-row {
-  margin-top: 8px;
+  margin-top: 4px;
   display: flex;
   align-items: center;
 }
@@ -292,12 +279,9 @@
   cursor: pointer;
   line-height: 1;
   transition: color 0.15s;
-  font-family: var(--font-ui);
+  font-family: var(--font-prose);
 }
-
-.gv-nav-add-shelf-btn:hover {
-  color: var(--text);
-}
+.gv-nav-add-shelf-btn:hover { color: var(--text); }
 
 .gv-nav-new-shelf-input {
   width: 100%;
@@ -311,12 +295,9 @@
   outline: none;
   transition: border-color 0.15s;
 }
+.gv-nav-new-shelf-input:focus { border-color: var(--accent-soft); }
 
-.gv-nav-new-shelf-input:focus {
-  border-color: var(--accent-soft);
-}
-
-/* ── Note signal indicators in nav ───────────────────────────────── */
+/* ── Note signal indicators ──────────────────────────────────────── */
 .gv-nav-signals {
   display: flex;
   align-items: center;
@@ -329,7 +310,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-ui);
+  font-family: var(--font-prose);
   font-size: 8px;
   font-weight: 600;
   letter-spacing: 0;
@@ -338,14 +319,12 @@
   line-height: 1;
 }
 
-/* Open question — warm amber */
 .gv-nav-signal-q {
   background: rgba(122, 106, 74, 0.12);
   color: var(--accent);
   border: 1px solid var(--accent-soft);
 }
 
-/* Process — slightly different tint */
 .gv-nav-signal-p {
   background: rgba(196, 184, 154, 0.15);
   color: var(--text-dim);
@@ -353,8 +332,34 @@
   font-size: 7px;
 }
 
-.gv-drag-over {
-  background: var(--bg-surface) !important;
-  border-radius: 2px;
+/* ── Search results ──────────────────────────────────────────────── */
+.gv-nav-empty-action { cursor: pointer; }
+
+/* ── CM6 / editor widgets (shared) ──────────────────────────────── */
+.gv-wikilink {
+  color: var(--link);
+  border-bottom: 1px solid var(--link-soft);
+  cursor: pointer;
+  font-family: var(--font-prose);
+}
+.gv-wikilink:hover {
   color: var(--text);
+  border-bottom-color: var(--link);
+}
+
+.gv-question-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  font-size: 9px;
+  color: var(--text-dimmer);
+  font-family: var(--font-mono);
+  margin-right: 4px;
+  vertical-align: middle;
+  cursor: default;
 }

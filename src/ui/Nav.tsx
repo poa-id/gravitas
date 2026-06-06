@@ -13,6 +13,7 @@ interface NavProps {
   onClose: () => void
   onNoteSelect: (note: NoteFile) => void
   onTodayFolio: () => void
+  onScratchOpen?: () => void
   workshop: Workshop
   onNoteDeleted: (note: NoteFile) => void
   onNoteMoved: (note: NoteFile, newNote: NoteFile) => void
@@ -90,7 +91,7 @@ function NoteSignalDots({ signals }: { signals: NoteSignals | null }) {
 let draggedNotePath: string | null = null
 
 export default function Nav({
-  open, onClose, onNoteSelect, onTodayFolio, workshop,
+  open, onClose, onNoteSelect, onTodayFolio, onScratchOpen, workshop,
   onNoteDeleted, onNoteMoved, onRenamed, onRefresh, noteTitles,
 }: NavProps) {
   const [search, setSearch] = useState('')
@@ -488,24 +489,16 @@ export default function Nav({
           {!filtered && (
             <div className="gv-nav-single">
 
-              {/* Scratch — always shown */}
-              <div className="gv-nav-section">
-                <div className="gv-nav-section-label">Scratch</div>
-                {(() => {
-                  const scratchNote = workshop.scratch.length > 0
-                    ? workshop.scratch[0]
-                    : workshop.allNotes.find(n => n.name === 'scratch' && n.shelf.length === 0)
-                  return scratchNote
-                    ? renderNoteRow(scratchNote, 'scratch', 'scratch', false)
-                    : (
-                      <div className="gv-nav-file gv-nav-empty-action"
-                        onClick={() => { onTodayFolio(); onClose() }}>
-                        <span className="gv-nav-dot scratch" />
-                        <span className="gv-nav-filename">scratch</span>
-                        <span className="gv-nav-date">⌘S</span>
-                      </div>
-                    )
-                })()}
+              {/* Scratch — single notebook tap target, no category wrapper */}
+              <div
+                className="gv-nav-scratch-entry"
+                onClick={() => { onScratchOpen?.(); onClose() }}
+              >
+                <span className="gv-nav-scratch-icon">📋</span>
+                <div className="gv-nav-scratch-text">
+                  <span className="gv-nav-scratch-name">Scratch</span>
+                  <span className="gv-nav-scratch-hint">quick capture · ⌘S</span>
+                </div>
               </div>
 
               {/* Folio */}
@@ -569,7 +562,7 @@ export default function Nav({
                 const isDragOver = dragOverShelf === shelfKey
                 const isRenamingThisShelf = renamingShelf === shelf.path
                 return (
-                  <div key={shelf.path} className="gv-nav-section">
+                  <div key={shelf.path} className="gv-nav-section" style={{ marginBottom: 4 }}>
                     <div
                       className={`gv-nav-section-label gv-nav-shelf-header ${isDragOver ? 'gv-drag-over' : ''}`}
                       onClick={() => { if (!isRenamingThisShelf) toggleShelf(shelf.path) }}
@@ -597,14 +590,14 @@ export default function Nav({
                       )}
                     </div>
                     {!isCollapsed && !isRenamingThisShelf && (
-                      <>
+                      <div className="gv-nav-shelf-notes">
                         {shelf.notes.slice(0, 6).map(note =>
                           renderNoteRow(note, '', formatNoteName(note.name))
                         )}
                         {shelf.notes.length === 0 && (
                           <div className="gv-nav-empty">Empty shelf.</div>
                         )}
-                      </>
+                      </div>
                     )}
                   </div>
                 )
