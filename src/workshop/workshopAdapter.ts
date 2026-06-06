@@ -65,10 +65,11 @@ export async function loadWorkshop(rootPath: string): Promise<Workshop> {
       const noteName = entry.name.replace('.md', '')
       const note: NoteFile = { name: noteName, path: fullPath, shelf: [] }
       if (noteName === 'scratch') {
-        // scratch.md lives at workshop root with empty shelf
         scratch.push(note)
+        // scratch.md is NOT added to allNotes — it's its own special surface
+      } else {
+        allNotes.push(note)
       }
-      allNotes.push(note)
     }
   }
 

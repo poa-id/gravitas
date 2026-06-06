@@ -119,19 +119,44 @@
 .gv-promote.visible { opacity: 1; }
 .gv-promote:hover { color: var(--text); }
 
-/* Promoted entry decorations */
-.gv-promoted-marker { display: none !important; }
+/* ── Scratch entry divider widget ──────────────────────────────────────── */
+.gv-scratch-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0 6px;
+  user-select: none;
+  pointer-events: none;
+}
+
+.gv-scratch-divider-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  opacity: 0.6;
+}
+
+.gv-scratch-divider-date {
+  font-family: var(--font-prose);
+  font-size: 11px;
+  color: var(--text-dimmer);
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* ── Promoted entry decorations ────────────────────────────────────────── */
 
 /* First content line of a promoted entry — struck through */
 .cm-line.gv-promoted-first {
-  opacity: 0.45;
+  opacity: 0.4;
   text-decoration: line-through;
-  text-decoration-color: var(--text-dimmer);
+  text-decoration-color: var(--text-dim);
   text-decoration-thickness: 1px;
 }
 
 /* All other lines of a promoted entry — dimmed */
-.cm-line.gv-promoted-entry { opacity: 0.45; }
+.cm-line.gv-promoted-entry { opacity: 0.4; }
 
 .gv-col {
   width: 600px;

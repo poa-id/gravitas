@@ -275,7 +275,7 @@ export default function App() {
         const now = new Date()
         const datePart = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
         const timePart = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-        const divider = `\n---\n*${datePart} · ${timePart}*\n\n`
+        const divider = `\n§ ${datePart} · ${timePart}\n\n`
 
         const isScratchNow = activeNoteRef.current?.shelf.length === 0
           && activeNoteRef.current?.name === 'scratch'
@@ -507,8 +507,8 @@ export default function App() {
     const ws = workshopRef.current
     if (!ws) return
     try {
-      // Insert > ~~promoted~~ marker into scratch at the given position
-      editorRef.current?.insertAt(insertAfterPos, '> ~~promoted~~\n')
+      // Insert §promoted marker into scratch at the given position
+      editorRef.current?.insertAt(insertAfterPos, '§promoted\n')
 
       // Create a new floor note with the entry content
       const note = await createNewNote(ws.path, [])
