@@ -1,7 +1,14 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Gravitas Nav
+   Design system: multiples of 4px spacing, three hierarchy levels,
+   Lora only, 2px radius, 120ms transitions, no shadows, no emoji
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Overlay ──────────────────────────────────────────────────────── */
 .gv-nav-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(28, 24, 20, 0.35);
+  background: rgba(44, 36, 32, 0.28);
   z-index: 100;
   display: flex;
   align-items: stretch;
@@ -9,35 +16,37 @@
 
 .gv-nav {
   width: 100%;
-  max-width: 680px;
+  max-width: 640px;
   background: var(--bg);
   display: flex;
   flex-direction: column;
-  animation: navSlideIn 0.18s ease;
+  animation: gv-nav-in 180ms ease;
 }
 
-@keyframes navSlideIn {
+@keyframes gv-nav-in {
   from { opacity: 0; transform: translateX(-8px); }
   to   { opacity: 1; transform: translateX(0); }
 }
 
+/* ── Header ───────────────────────────────────────────────────────── */
 .gv-nav-header {
-  height: 48px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 28px;
+  padding: 0 24px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  background: var(--bg-surface);
 }
 
 .gv-nav-logo {
   font-family: var(--font-prose);
-  font-size: 13px;
+  font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--text);
+  color: var(--text-dimmer);
 }
 
 .gv-nav-close {
@@ -46,29 +55,30 @@
   font-family: var(--font-prose);
   cursor: pointer;
   letter-spacing: 0.04em;
-  transition: color 0.15s;
+  transition: color 120ms ease;
 }
 .gv-nav-close:hover { color: var(--text); }
 
+/* ── Body ─────────────────────────────────────────────────────────── */
 .gv-nav-body {
   flex: 1;
-  padding: 16px 28px 28px;
+  padding: 16px 24px 32px;
   overflow-y: auto;
 }
 
-/* ── Search ──────────────────────────────────────────────────────── */
+/* ── Search ───────────────────────────────────────────────────────── */
 .gv-nav-search {
   width: 100%;
   background: var(--bg-subtle);
   border: 1px solid var(--border);
   border-radius: 2px;
-  padding: 7px 12px;
+  padding: 6px 12px;
   font-family: var(--font-prose);
   font-size: 13px;
   color: var(--text);
   outline: none;
-  margin-bottom: 20px;
-  transition: border-color 0.15s, background 0.15s;
+  margin-bottom: 16px;
+  transition: border-color 120ms ease, background 120ms ease;
   box-sizing: border-box;
 }
 .gv-nav-search::placeholder { color: var(--text-dimmer); }
@@ -77,7 +87,7 @@
   background: var(--bg);
 }
 
-/* ── Single column layout ────────────────────────────────────────── */
+/* ── Layout ───────────────────────────────────────────────────────── */
 .gv-nav-cols {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -87,17 +97,17 @@
 .gv-nav-single {
   display: flex;
   flex-direction: column;
-  gap: 0;
 }
 
-/* ── Section label — small, quiet, uppercase ─────────────────────── */
+/* ── Section ──────────────────────────────────────────────────────── */
 .gv-nav-section {
   margin-bottom: 16px;
 }
 
+/* L3 — Structure: section labels */
 .gv-nav-section-label {
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-dimmer);
@@ -110,35 +120,25 @@
   user-select: none;
 }
 
-/* ── Scratch — single tap target, feels like a notebook ─────────── */
+/* ── Scratch — distinct surface, not a file row ───────────────────── */
 .gv-nav-scratch-entry {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  margin: 0 -10px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  margin: 0 -12px 12px;
   border-radius: 2px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
   cursor: pointer;
-  transition: background 0.12s;
+  transition: background 120ms ease, border-color 120ms ease;
 }
 .gv-nav-scratch-entry:hover {
   background: var(--bg-subtle);
+  border-color: var(--accent-soft);
 }
 
-.gv-nav-scratch-icon {
-  font-size: 15px;
-  color: var(--text-dimmer);
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-.gv-nav-scratch-text {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
+/* L1 — Content */
 .gv-nav-scratch-name {
   font-size: 13px;
   color: var(--text);
@@ -146,14 +146,15 @@
   line-height: 1.3;
 }
 
+/* L2 — Support */
 .gv-nav-scratch-hint {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-dimmer);
   font-family: var(--font-prose);
   letter-spacing: 0.02em;
 }
 
-/* ── Note row ────────────────────────────────────────────────────── */
+/* ── Note row — L1 content ────────────────────────────────────────── */
 .gv-nav-file {
   display: flex;
   align-items: center;
@@ -162,23 +163,24 @@
   margin: 0 -6px;
   border-radius: 2px;
   cursor: pointer;
-  transition: background 0.1s;
+  transition: background 120ms ease;
 }
-.gv-nav-file:hover { background: var(--bg-subtle); }
+.gv-nav-file:hover  { background: var(--bg-subtle); }
 .gv-nav-file.active { background: var(--bg-surface); }
 
 .gv-nav-dot {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
   background: var(--border);
   flex-shrink: 0;
 }
-.gv-nav-dot.folio  { background: var(--accent); }
-.gv-nav-dot.piece  { background: var(--link); }
+.gv-nav-dot.folio { background: var(--accent); }
+.gv-nav-dot.link  { background: var(--link); }
 
+/* L1 */
 .gv-nav-filename {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--text);
   font-family: var(--font-prose);
   flex: 1;
@@ -187,40 +189,36 @@
   text-overflow: ellipsis;
 }
 
+/* L2 */
 .gv-nav-date {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-dimmer);
   font-family: var(--font-prose);
   flex-shrink: 0;
 }
 
-/* ── Shelf header (collapsible + drag target) ────────────────────── */
+/* ── Shelf header ─────────────────────────────────────────────────── */
 .gv-nav-shelf-header {
   cursor: pointer;
   user-select: none;
   border-radius: 2px;
   padding: 2px 4px;
   margin: 0 -4px;
-  transition: background 0.1s;
+  transition: background 120ms ease;
 }
 .gv-nav-shelf-header:hover { background: var(--bg-subtle); }
-.gv-nav-shelf-header.drop-target {
-  background: var(--bg-surface);
-  outline: 1px solid var(--accent-soft);
-  outline-offset: -1px;
-}
 .gv-drag-over {
   background: var(--bg-surface) !important;
   border-radius: 2px;
-  color: var(--text);
 }
 
+/* L3 — shelf name same as section label */
 .gv-nav-shelf-name {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-dimmer);
@@ -228,31 +226,35 @@
 }
 
 .gv-nav-chevron {
-  font-size: 8px;
+  font-size: 7px;
   color: var(--text-dimmer);
   line-height: 1;
   flex-shrink: 0;
+  opacity: 0.7;
 }
 
-/* Shelf notes — tighter than floor notes */
+/* Shelf notes — slightly indented, same row height */
+.gv-nav-shelf-notes {
+  padding-left: 8px;
+}
 .gv-nav-shelf-notes .gv-nav-file {
   padding: 2px 6px;
 }
 
-/* ── Empty / utility ─────────────────────────────────────────────── */
+/* ── Empty state ──────────────────────────────────────────────────── */
 .gv-nav-empty {
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--text-dimmer);
   font-family: var(--font-prose);
   font-style: italic;
   padding: 2px 6px;
 }
 
-/* ── Inline rename input ─────────────────────────────────────────── */
+/* ── Inline rename ────────────────────────────────────────────────── */
 .gv-nav-rename-input {
   flex: 1;
   min-width: 0;
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--text);
   font-family: var(--font-prose);
   background: transparent;
@@ -263,11 +265,9 @@
   line-height: inherit;
 }
 
-/* ── New shelf controls ──────────────────────────────────────────── */
+/* ── New shelf ────────────────────────────────────────────────────── */
 .gv-nav-add-shelf-row {
   margin-top: 4px;
-  display: flex;
-  align-items: center;
 }
 
 .gv-nav-add-shelf-btn {
@@ -278,7 +278,7 @@
   color: var(--text-dimmer);
   cursor: pointer;
   line-height: 1;
-  transition: color 0.15s;
+  transition: color 120ms ease;
   font-family: var(--font-prose);
 }
 .gv-nav-add-shelf-btn:hover { color: var(--text); }
@@ -288,16 +288,16 @@
   background: var(--bg-subtle);
   border: 1px solid var(--border);
   border-radius: 2px;
-  padding: 3px 7px;
+  padding: 4px 8px;
   font-family: var(--font-prose);
   font-size: 12px;
   color: var(--text);
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 120ms ease;
 }
 .gv-nav-new-shelf-input:focus { border-color: var(--accent-soft); }
 
-/* ── Note signal indicators ──────────────────────────────────────── */
+/* ── Signal badges ────────────────────────────────────────────────── */
 .gv-nav-signals {
   display: flex;
   align-items: center;
@@ -312,30 +312,25 @@
   justify-content: center;
   font-family: var(--font-prose);
   font-size: 8px;
-  font-weight: 600;
-  letter-spacing: 0;
-  border-radius: 3px;
+  font-weight: 500;
+  border-radius: 2px;
   padding: 1px 4px;
   line-height: 1;
 }
 
 .gv-nav-signal-q {
-  background: rgba(122, 106, 74, 0.12);
+  background: rgba(122, 106, 74, 0.1);
   color: var(--accent);
   border: 1px solid var(--accent-soft);
 }
 
 .gv-nav-signal-p {
-  background: rgba(196, 184, 154, 0.15);
-  color: var(--text-dim);
+  background: transparent;
+  color: var(--text-dimmer);
   border: 1px solid var(--border);
-  font-size: 7px;
 }
 
-/* ── Search results ──────────────────────────────────────────────── */
-.gv-nav-empty-action { cursor: pointer; }
-
-/* ── CM6 / editor widgets (shared) ──────────────────────────────── */
+/* ── Wikilink / question widgets (shared with editor) ─────────────── */
 .gv-wikilink {
   color: var(--link);
   border-bottom: 1px solid var(--link-soft);

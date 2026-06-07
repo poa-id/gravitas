@@ -489,16 +489,13 @@ export default function Nav({
           {!filtered && (
             <div className="gv-nav-single">
 
-              {/* Scratch — single notebook tap target, no category wrapper */}
+              {/* Scratch — distinct surface, not a file row */}
               <div
                 className="gv-nav-scratch-entry"
                 onClick={() => { onScratchOpen?.(); onClose() }}
               >
-                <span className="gv-nav-scratch-icon">📋</span>
-                <div className="gv-nav-scratch-text">
-                  <span className="gv-nav-scratch-name">Scratch</span>
-                  <span className="gv-nav-scratch-hint">quick capture · ⌘S</span>
-                </div>
+                <span className="gv-nav-scratch-name">Scratch</span>
+                <span className="gv-nav-scratch-hint">quick capture · ⌘S</span>
               </div>
 
               {/* Folio */}
@@ -514,7 +511,7 @@ export default function Nav({
                 </div>
                 {folioExpanded && (
                   <>
-                    <div
+                      <div
                       className="gv-nav-file"
                       onClick={() => { onTodayFolio(); onClose() }}
                     >
