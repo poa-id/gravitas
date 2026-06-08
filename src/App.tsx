@@ -467,20 +467,12 @@ export default function App() {
   const handleScratchOpen = async () => {
     if (!workshop) return
     await flushSave()
-    const now = new Date()
-    const datePart = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    const timePart = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-    const divider = `\n§ ${datePart} · ${timePart}\n\n`
     const scratch = await ensureScratch(workshop.path)
-    const existing = await readNote(scratch.path).catch(() => '')
-    const newContent = existing + divider
-    await writeNote(scratch.path, newContent)
+    const content = await readNote(scratch.path).catch(() => '')
     setActiveNote(scratch)
-    setNoteContent(newContent)
+    setNoteContent(content)
     setSaveState('set')
     await setPreference('lastNotePath', scratch.path)
-    await refreshWorkshop(workshop.path)
-    showToastOnce()
   }
 
   const handleContentChange = (content: string) => {

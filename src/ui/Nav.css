@@ -128,7 +128,7 @@
   margin: 0 -12px 12px;
   border-radius: 2px;
   border: 1px solid var(--border);
-  background: var(--bg-surface);
+  background: var(--bg);
   cursor: pointer;
   transition: background 120ms ease, border-color 120ms ease;
 }

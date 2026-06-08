@@ -133,9 +133,14 @@ export function createScratchPromotePlugin(
             deco: Decoration.line({ class: 'gv-scratch-divider-line' })
           })
 
-          // Also mark the text itself as dimmer so § timestamp reads as metadata
+          // Hide the "§ " prefix (2 chars), show only the date
           ranges.push({
             from: divLine.from,
+            to: divLine.from + 2,
+            deco: Decoration.mark({ class: 'gv-scratch-divider-prefix' })
+          })
+          ranges.push({
+            from: divLine.from + 2,
             to: divLine.to,
             deco: Decoration.mark({ class: 'gv-scratch-divider-text' })
           })
@@ -189,8 +194,11 @@ export function createScratchPromotePlugin(
         const coords = this.view.coordsAtPos(lineFrom)
         if (!coords) { this.scheduleHide(); return }
 
-        this.affordanceEl.style.top = `${coords.top + window.scrollY}px`
-        this.affordanceEl.style.left = `${coords.left - 80}px`
+        // coords are viewport-relative; position is fixed so no scroll offset needed
+        // Place promote button just left of the editor's left edge
+        const editorRect = this.view.dom.getBoundingClientRect()
+        this.affordanceEl.style.top = `${coords.top}px`
+        this.affordanceEl.style.left = `${editorRect.left - 72}px`
         this.affordanceEl.classList.add('visible')
       }
 

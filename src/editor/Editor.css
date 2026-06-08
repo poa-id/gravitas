@@ -119,33 +119,40 @@
 .gv-promote.visible { opacity: 1; }
 .gv-promote:hover { color: var(--text); }
 
-/* ── Scratch entry divider — pure CSS line decoration ──────────────────── */
+/* ── Scratch entry divider ──────────────────────────────────────────────── */
 
-/* The § timestamp line styled as a thin rule with date */
 .cm-line.gv-scratch-divider-line {
   display: flex;
   align-items: center;
-  padding: 12px 0 4px;
-  pointer-events: none;
+  padding: 12px 0 4px !important;
 }
 
-/* Hide the raw § prefix — only show the date text */
+/* Rule that grows to fill space before the date */
+.cm-line.gv-scratch-divider-line::before {
+  content: '';
+  display: inline-block;
+  width: 40px;
+  height: 1px;
+  background: var(--border);
+  opacity: 0.5;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+/* Hide the § prefix */
+.gv-scratch-divider-prefix {
+  font-size: 0;
+  opacity: 0;
+  width: 0;
+  display: inline-block;
+}
+
+/* Date — quiet metadata */
 .gv-scratch-divider-text {
   font-family: var(--font-prose);
   font-size: 11px;
   color: var(--text-dimmer);
   letter-spacing: 0.02em;
-}
-
-/* Draw the horizontal rule before the date using the line's ::before */
-.cm-line.gv-scratch-divider-line::before {
-  content: '';
-  display: block;
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-  opacity: 0.6;
-  margin-right: 12px;
 }
 
 /* ── Promoted entry decorations ────────────────────────────────────────── */
