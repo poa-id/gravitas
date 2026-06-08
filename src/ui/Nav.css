@@ -21,6 +21,9 @@
   display: flex;
   flex-direction: column;
   animation: gv-nav-in 180ms ease;
+  /* Reset body prose defaults */
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 @keyframes gv-nav-in {
@@ -106,10 +109,10 @@
 /* L3 — Structure: section labels */
 .gv-nav-section-label {
   font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.1em;
+  font-weight: 600;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-dimmer);
+  color: var(--text-dim);
   font-family: var(--font-prose);
   padding: 0 2px;
   margin-bottom: 4px;
@@ -217,10 +220,10 @@
   align-items: center;
   gap: 4px;
   font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.1em;
+  font-weight: 600;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-dimmer);
+  color: var(--text-dim);
   font-family: var(--font-prose);
 }
 

@@ -548,7 +548,7 @@ export default function Nav({
 
               {/* Shelves */}
               {workshop.shelves.length > 0 && (
-                <div className="gv-nav-section">
+                <div className="gv-nav-section" style={{ marginTop: 8, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
                   <div className="gv-nav-section-label">Shelves</div>
                 </div>
               )}
