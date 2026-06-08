@@ -74,13 +74,15 @@ export function scratchReadonlyExtension(isScratchFn: () => boolean) {
 // ── Plugin factory ─────────────────────────────────────────────────────────
 
 export function createScratchPromotePlugin(
-  onPromoteRef: RefObject<((content: string, insertAfterPos: number) => void) | undefined>
+  onPromoteRef: RefObject<((content: string, insertAfterPos: number) => void) | undefined>,
+  onDeleteEntryRef: RefObject<((dividerLineNo: number) => void) | undefined>
 ) {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet
       entries: ScratchEntry[] = []
       affordanceEl: HTMLElement
+      trashEl: HTMLElement
       hoveredDividerLineNo: number = -1
       hideTimer: ReturnType<typeof setTimeout> | null = null
       affordanceHovered: boolean = false
@@ -89,6 +91,7 @@ export function createScratchPromotePlugin(
         this.entries = parseEntries(view.state.doc)
         this.decorations = this.buildDecorations()
 
+        // Promote affordance
         this.affordanceEl = document.createElement('div')
         this.affordanceEl.className = 'gv-promote'
         this.affordanceEl.textContent = '↑ promote'
@@ -100,6 +103,22 @@ export function createScratchPromotePlugin(
           if (this.hideTimer) { clearTimeout(this.hideTimer); this.hideTimer = null }
         })
         this.affordanceEl.addEventListener('mouseleave', () => {
+          this.affordanceHovered = false
+          this.scheduleHide()
+        })
+
+        // Trash affordance
+        this.trashEl = document.createElement('div')
+        this.trashEl.className = 'gv-entry-trash'
+        this.trashEl.textContent = '↓ trash'
+        document.body.appendChild(this.trashEl)
+
+        this.trashEl.addEventListener('click', () => this.handleTrashClick())
+        this.trashEl.addEventListener('mouseenter', () => {
+          this.affordanceHovered = true
+          if (this.hideTimer) { clearTimeout(this.hideTimer); this.hideTimer = null }
+        })
+        this.trashEl.addEventListener('mouseleave', () => {
           this.affordanceHovered = false
           this.scheduleHide()
         })
@@ -133,12 +152,13 @@ export function createScratchPromotePlugin(
             deco: Decoration.line({ class: 'gv-scratch-divider-line' })
           })
 
-          // Hide the "§ " prefix (2 chars), show only the date
+          // Replace the "§ " prefix (2 chars) so it's invisible — no CSS tricks needed
           ranges.push({
             from: divLine.from,
             to: divLine.from + 2,
-            deco: Decoration.mark({ class: 'gv-scratch-divider-prefix' })
+            deco: Decoration.replace({})
           })
+          // Style the date text
           ranges.push({
             from: divLine.from + 2,
             to: divLine.to,
@@ -200,6 +220,11 @@ export function createScratchPromotePlugin(
         this.affordanceEl.style.top = `${coords.top}px`
         this.affordanceEl.style.left = `${editorRect.left - 72}px`
         this.affordanceEl.classList.add('visible')
+
+        // Trash sits to the right of the divider line
+        this.trashEl.style.top = `${coords.top}px`
+        this.trashEl.style.right = `${window.innerWidth - editorRect.right - 4}px`
+        this.trashEl.classList.add('visible')
       }
 
       onMouseLeave() { this.scheduleHide() }
@@ -210,6 +235,7 @@ export function createScratchPromotePlugin(
         this.hideTimer = setTimeout(() => {
           if (!this.affordanceHovered) {
             this.affordanceEl.classList.remove('visible')
+            this.trashEl.classList.remove('visible')
             this.hoveredDividerLineNo = -1
           }
           this.hideTimer = null
@@ -239,6 +265,16 @@ export function createScratchPromotePlugin(
 
         this.affordanceHovered = false
         this.affordanceEl.classList.remove('visible')
+        this.trashEl.classList.remove('visible')
+        this.hoveredDividerLineNo = -1
+      }
+
+      handleTrashClick() {
+        if (this.hoveredDividerLineNo < 0 || !onDeleteEntryRef.current) return
+        onDeleteEntryRef.current(this.hoveredDividerLineNo)
+        this.affordanceHovered = false
+        this.affordanceEl.classList.remove('visible')
+        this.trashEl.classList.remove('visible')
         this.hoveredDividerLineNo = -1
       }
 
@@ -247,6 +283,7 @@ export function createScratchPromotePlugin(
         this.view.dom.removeEventListener('mouseleave', this.onMouseLeave)
         if (this.hideTimer) clearTimeout(this.hideTimer)
         this.affordanceEl.remove()
+        this.trashEl.remove()
       }
     },
     { decorations: v => v.decorations }

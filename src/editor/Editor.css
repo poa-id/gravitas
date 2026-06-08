@@ -115,9 +115,24 @@
   z-index: 50;
   white-space: nowrap;
 }
-
 .gv-promote.visible { opacity: 1; }
 .gv-promote:hover { color: var(--text); }
+
+.gv-entry-trash {
+  position: fixed;
+  color: var(--text-dimmer);
+  font-size: 11px;
+  font-family: var(--font-prose);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  user-select: none;
+  pointer-events: auto;
+  z-index: 50;
+  white-space: nowrap;
+}
+.gv-entry-trash.visible { opacity: 1; }
+.gv-entry-trash:hover { color: var(--warn); }
 
 /* ── Scratch entry divider ──────────────────────────────────────────────── */
 

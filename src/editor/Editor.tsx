@@ -31,6 +31,7 @@ interface Note {
 export interface EditorHandle {
   appendEntry: (text: string) => void
   insertAt: (pos: number, text: string) => void
+  getView: () => EditorView | null
 }
 
 interface EditorProps {
@@ -45,6 +46,7 @@ interface EditorProps {
   isNewNote?: boolean
   onNewNoteDone?: () => void
   onPromote?: (content: string, insertAfterPos: number) => void
+  onDeleteEntry?: (dividerLineNo: number) => void
 }
 
 function countWords(text: string): number {
@@ -68,6 +70,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(function Editor({
   isNewNote = false,
   onNewNoteDone,
   onPromote,
+  onDeleteEntry,
 }, ref) {
   const editorRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -85,11 +88,13 @@ const Editor = forwardRef<EditorHandle, EditorProps>(function Editor({
   const [pasteBannerVisible, setPasteBannerVisible] = useState(false)
   const [entering, setEntering] = useState(false)
   const onPromoteRef = useRef(onPromote)
+  const onDeleteEntryRef = useRef(onDeleteEntry)
 
   useEffect(() => { soundEnabledRef.current = soundEnabled }, [soundEnabled])
   useEffect(() => { pasteIntentEnabledRef.current = pasteIntentEnabled }, [pasteIntentEnabled])
   useEffect(() => { isScratchRef.current = isScratch }, [isScratch])
   useEffect(() => { onPromoteRef.current = onPromote }, [onPromote])
+  useEffect(() => { onDeleteEntryRef.current = onDeleteEntry }, [onDeleteEntry])
 
   // Expose imperative handles to parent (App)
   useImperativeHandle(ref, () => ({
@@ -109,6 +114,9 @@ const Editor = forwardRef<EditorHandle, EditorProps>(function Editor({
       view.dispatch({
         changes: { from: pos, insert: text },
       })
+    },
+    getView() {
+      return viewRef.current
     },
   }))
 
@@ -151,7 +159,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(function Editor({
   // Create promote plugin once (always registered; only active when doc has scratch entries)
   const promotePluginRef = useRef<ReturnType<typeof createScratchPromotePlugin> | null>(null)
   if (!promotePluginRef.current) {
-    promotePluginRef.current = createScratchPromotePlugin(onPromoteRef)
+    promotePluginRef.current = createScratchPromotePlugin(onPromoteRef, onDeleteEntryRef)
   }
 
   useEffect(() => {

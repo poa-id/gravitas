@@ -518,13 +518,9 @@ export default function App() {
     const ws = workshopRef.current
     if (!ws) return
     try {
-      // Insert §promoted marker into scratch at the given position
       editorRef.current?.insertAt(insertAfterPos, '§promoted\n')
-
-      // Create a new floor note with the entry content
       const note = await createNewNote(ws.path, [])
       await writeNote(note.path, content)
-
       setActiveNote(note)
       setNoteContent(content)
       setSaveState('set')
@@ -534,6 +530,33 @@ export default function App() {
     } catch (err) {
       console.error('Failed to promote scratch entry:', err)
     }
+  }
+
+  // Delete entry: remove from divider line to next divider (or end of doc)
+  const handleDeleteEntry = (dividerLineNo: number) => {
+    const view = editorRef.current?.getView?.()
+    if (!view) return
+    const doc = view.state.doc
+    if (dividerLineNo < 1 || dividerLineNo > doc.lines) return
+
+    const divLine = doc.line(dividerLineNo)
+
+    // Find the next divider line
+    let endPos = doc.length
+    for (let ln = dividerLineNo + 1; ln <= doc.lines; ln++) {
+      if (/^§ .+$/.test(doc.line(ln).text)) {
+        // End just before this next divider (include the blank line before it)
+        endPos = doc.line(ln).from
+        break
+      }
+    }
+
+    // Include the newline before the divider if not at doc start
+    const fromPos = divLine.from > 0 ? divLine.from - 1 : 0
+
+    view.dispatch({
+      changes: { from: fromPos, to: endPos }
+    })
   }
 
   if (loading) return null
@@ -581,6 +604,7 @@ export default function App() {
         isNewNote={isNewNote}
         onNewNoteDone={() => setIsNewNote(false)}
         onPromote={handlePromote}
+        onDeleteEntry={handleDeleteEntry}
       />
 
       {showScratchToast && (
