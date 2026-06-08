@@ -1,4 +1,4 @@
-import { ViewPlugin, DecorationSet, ViewUpdate, EditorView, Decoration, WidgetType } from '@codemirror/view'
+import { ViewPlugin, DecorationSet, ViewUpdate, EditorView, Decoration } from '@codemirror/view'
 import { RangeSetBuilder, EditorState, Transaction } from '@codemirror/state'
 import type { RefObject } from 'react'
 
@@ -9,31 +9,6 @@ import type { RefObject } from 'react'
 
 const DIVIDER_RE = /^§ .+$/        // § Jun 6, 2026 · 9:04 AM
 const PROMOTED_MARKER = '§promoted'
-
-// ── Widget: renders divider line as thin stroke + small date ──────────────
-
-class DividerWidget extends WidgetType {
-  constructor(readonly dateText: string) { super() }
-
-  toDOM() {
-    const wrap = document.createElement('div')
-    wrap.className = 'gv-scratch-divider'
-
-    const line = document.createElement('div')
-    line.className = 'gv-scratch-divider-line'
-
-    const date = document.createElement('span')
-    date.className = 'gv-scratch-divider-date'
-    date.textContent = this.dateText
-
-    wrap.appendChild(line)
-    wrap.appendChild(date)
-    return wrap
-  }
-
-  ignoreEvent() { return true }
-  get estimatedHeight() { return 28 }
-}
 
 // ── Entry parsing ──────────────────────────────────────────────────────────
 
@@ -150,20 +125,28 @@ export function createScratchPromotePlugin(
         for (const entry of this.entries) {
           const divLine = doc.line(entry.dividerLineNo)
 
-          // Replace the § line with a visual widget
+          // Style the § line as a visual divider via line class (not block widget —
+          // block decorations are forbidden in ViewPlugins)
+          ranges.push({
+            from: divLine.from,
+            to: divLine.from,
+            deco: Decoration.line({ class: 'gv-scratch-divider-line' })
+          })
+
+          // Also mark the text itself as dimmer so § timestamp reads as metadata
           ranges.push({
             from: divLine.from,
             to: divLine.to,
-            deco: Decoration.replace({ widget: new DividerWidget(entry.dateText), block: true })
+            deco: Decoration.mark({ class: 'gv-scratch-divider-text' })
           })
 
           if (entry.promoted && entry.markerLineNo > 0 && entry.markerLineNo <= doc.lines) {
-            // Hide the §promoted marker line
+            // Hide the §promoted marker line text
             const markerLine = doc.line(entry.markerLineNo)
             ranges.push({
               from: markerLine.from,
-              to: markerLine.to,
-              deco: Decoration.replace({})
+              to: markerLine.from,
+              deco: Decoration.line({ class: 'gv-promoted-marker' })
             })
 
             // Dim and strike first content line, dim rest
@@ -181,7 +164,6 @@ export function createScratchPromotePlugin(
           }
         }
 
-        // Must be sorted by from position for RangeSetBuilder
         ranges.sort((a, b) => a.from !== b.from ? a.from - b.from : a.to - b.to)
         for (const { from, to, deco } of ranges) {
           builder.add(from, to, deco)
