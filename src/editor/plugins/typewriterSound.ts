@@ -22,6 +22,7 @@ let audioCtx: AudioContext | null = null
 let buffers: (AudioBuffer | null)[] = Array(SOUND_COUNT).fill(null)
 let loadState: 'idle' | 'loading' | 'ready' | 'failed' = 'idle'
 let lastPlayTime = 0
+let gestureWarmupArmed = false
 
 async function init() {
   if (loadState !== 'idle') return
@@ -56,45 +57,55 @@ async function init() {
 }
 
 export function warmup() {
-  if (loadState === 'idle') {
+  if (loadState !== 'idle' || gestureWarmupArmed || typeof window === 'undefined') return
+
+  gestureWarmupArmed = true
+
+  const onFirstGesture = () => {
+    window.removeEventListener('pointerdown', onFirstGesture)
+    window.removeEventListener('keydown', onFirstGesture)
+    gestureWarmupArmed = false
     init().catch(console.error)
   }
+
+  window.addEventListener('pointerdown', onFirstGesture, { once: true })
+  window.addEventListener('keydown', onFirstGesture, { once: true })
 }
 
 export function playKeySound() {
-    if (loadState === 'idle') {
-      init().catch(console.error)
-      return
-    }
-  
-    if (loadState !== 'ready' || !audioCtx) return
-  
-    // If suspended, resume AND play — don't skip this keypress
-    const play = () => {
-      const now = Date.now()
-      if (now - lastPlayTime < MIN_INTERVAL) return
-      lastPlayTime = now
-  
-      const index = queue.next(SOUND_COUNT)
-      const buffer = buffers[index]
-      if (!buffer) return
-  
-      try {
-        const source = audioCtx!.createBufferSource()
-        source.buffer = buffer
-        const gain = audioCtx!.createGain()
-        gain.gain.value = 0.25
-        source.connect(gain)
-        gain.connect(audioCtx!.destination)
-        source.start(0)
-      } catch (err) {
-        console.warn('Playback error:', err)
-      }
-    }
-  
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume().then(play).catch(console.error)
-    } else {
-      play()
+  if (loadState === 'idle') {
+    // This is normally called from a key event, so browser audio policies allow init here.
+    init().catch(console.error)
+    return
+  }
+
+  if (loadState !== 'ready' || !audioCtx) return
+
+  const play = () => {
+    const now = Date.now()
+    if (now - lastPlayTime < MIN_INTERVAL) return
+    lastPlayTime = now
+
+    const index = queue.next(SOUND_COUNT)
+    const buffer = buffers[index]
+    if (!buffer) return
+
+    try {
+      const source = audioCtx!.createBufferSource()
+      source.buffer = buffer
+      const gain = audioCtx!.createGain()
+      gain.gain.value = 0.25
+      source.connect(gain)
+      gain.connect(audioCtx!.destination)
+      source.start(0)
+    } catch (err) {
+      console.warn('Playback error:', err)
     }
   }
+
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume().then(play).catch(console.error)
+  } else {
+    play()
+  }
+}
