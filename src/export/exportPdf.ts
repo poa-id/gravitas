@@ -91,15 +91,11 @@ function markdownToHtml(markdown: string): string {
   return out.join('\n')
 }
 
-export function exportNoteAsPdf(title: string, markdown: string): void {
-  const popup = window.open('', '_blank', 'noopener,noreferrer')
-  if (!popup) throw new Error('Allow pop-ups to export a PDF.')
-
+function buildPrintableDocument(title: string, markdown: string): string {
   const safeTitle = escapeHtml(title)
   const body = markdownToHtml(markdown)
 
-  popup.document.open()
-  popup.document.write(`<!doctype html>
+  return `<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -160,10 +156,29 @@ export function exportNoteAsPdf(title: string, markdown: string): void {
   <h1 class="document-title">${safeTitle}</h1>
   ${body}
 </article>
-<script>
-  window.addEventListener('load', () => setTimeout(() => window.print(), 120));
-</script>
 </body>
-</html>`)
-  popup.document.close()
+</html>`
+}
+
+export function exportNoteAsPdf(title: string, markdown: string): void {
+  // Blob URL is more reliable than writing into an about:blank window. In particular,
+  // noopener can make window.open() return null even though the blank tab was created.
+  const html = buildPrintableDocument(title, markdown)
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const popup = window.open(url, '_blank')
+
+  if (!popup) {
+    URL.revokeObjectURL(url)
+    throw new Error('Allow pop-ups to export a PDF.')
+  }
+
+  popup.addEventListener('load', () => {
+    // Give browser fonts/layout a beat to settle before opening the native PDF dialog.
+    setTimeout(() => {
+      popup.focus()
+      popup.print()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    }, 180)
+  }, { once: true })
 }
