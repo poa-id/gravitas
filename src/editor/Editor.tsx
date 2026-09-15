@@ -39,6 +39,7 @@ interface EditorProps {
   onNavOpen: () => void
   onContentChange?: (content: string) => void
   onTitleChange?: (newTitle: string) => void
+  onExportPdf?: () => void
   saveState?: 'set' | 'setting' | 'unsaved'
   soundEnabled?: boolean
   pasteIntentEnabled?: boolean
@@ -63,6 +64,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(function Editor({
   onNavOpen,
   onContentChange,
   onTitleChange,
+  onExportPdf,
   saveState = 'set',
   soundEnabled = false,
   pasteIntentEnabled = true,
@@ -96,28 +98,19 @@ const Editor = forwardRef<EditorHandle, EditorProps>(function Editor({
   useEffect(() => { onPromoteRef.current = onPromote }, [onPromote])
   useEffect(() => { onDeleteEntryRef.current = onDeleteEntry }, [onDeleteEntry])
 
-  // Expose imperative handles to parent (App)
   useImperativeHandle(ref, () => ({
     appendEntry(text: string) {
       const view = viewRef.current
       if (!view) return
       const docLen = view.state.doc.length
-      view.dispatch({
-        changes: { from: docLen, insert: text },
-        selection: { anchor: docLen + text.length },
-        scrollIntoView: true,
-      })
+      view.dispatch({ changes: { from: docLen, insert: text }, selection: { anchor: docLen + text.length }, scrollIntoView: true })
     },
     insertAt(pos: number, text: string) {
       const view = viewRef.current
       if (!view) return
-      view.dispatch({
-        changes: { from: pos, insert: text },
-      })
+      view.dispatch({ changes: { from: pos, insert: text } })
     },
-    getView() {
-      return viewRef.current
-    },
+    getView() { return viewRef.current },
   }))
 
   const showUI = (e: React.MouseEvent) => {
@@ -137,9 +130,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(function Editor({
   const handleTitleCommit = () => {
     setEditingTitle(false)
     const trimmed = titleDraft.trim()
-    if (trimmed && trimmed !== note.title) {
-      onTitleChange?.(trimmed)
-    }
+    if (trimmed && trimmed !== note.title) onTitleChange?.(trimmed)
   }
 
   const handleTitleKeyDown = (e: React.KeyboardEvent) => {
@@ -147,130 +138,68 @@ const Editor = forwardRef<EditorHandle, EditorProps>(function Editor({
     if (e.key === 'Escape') setEditingTitle(false)
   }
 
-  // Create paste plugin once
   const pastePluginRef = useRef<ReturnType<typeof createPasteIntentPlugin> | null>(null)
   if (!pastePluginRef.current) {
-    pastePluginRef.current = createPasteIntentPlugin(
-      (state) => setPasteBannerVisible(state.active),
-      pasteIntentEnabledRef
-    )
+    pastePluginRef.current = createPasteIntentPlugin((state) => setPasteBannerVisible(state.active), pasteIntentEnabledRef)
   }
 
-  // Create promote plugin once (always registered; only active when doc has scratch entries)
   const promotePluginRef = useRef<ReturnType<typeof createScratchPromotePlugin> | null>(null)
-  if (!promotePluginRef.current) {
-    promotePluginRef.current = createScratchPromotePlugin(onPromoteRef, onDeleteEntryRef)
-  }
+  if (!promotePluginRef.current) promotePluginRef.current = createScratchPromotePlugin(onPromoteRef, onDeleteEntryRef)
 
   useEffect(() => {
     if (!editorRef.current) return
-
     const state = EditorState.create({
       doc: note.content,
       extensions: [
-        history(),
-        keymap.of([...defaultKeymap, ...historyKeymap]),
-        markdown(),
-        gravitas,
-        wikilinkPlugin,
-        openQuestionPlugin,
-        markdownRenderPlugin,
-        processBlockPlugin,
-        focusGradient,
+        history(), keymap.of([...defaultKeymap, ...historyKeymap]), markdown(), gravitas,
+        wikilinkPlugin, openQuestionPlugin, markdownRenderPlugin, processBlockPlugin, focusGradient,
         ...(pastePluginRef.current ? [pastePluginRef.current] : []),
         ...(promotePluginRef.current ? [promotePluginRef.current] : []),
-        scratchReadonlyExtension(() => isScratchRef.current),
-        ...typewriterExtensions,
+        scratchReadonlyExtension(() => isScratchRef.current), ...typewriterExtensions,
         EditorView.domEventHandlers({
           keydown(e) {
             if (!soundEnabledRef.current) return false
-            if (
-              e.key.length === 1 ||
-              e.key === 'Enter' ||
-              e.key === 'Backspace' ||
-              e.key === 'Delete'
-            ) {
-              playKeySound()
-            }
+            if (e.key.length === 1 || e.key === 'Enter' || e.key === 'Backspace' || e.key === 'Delete') playKeySound()
             return false
           },
         }),
         EditorView.updateListener.of((update: ViewUpdate) => {
           if (update.docChanged) {
             const text = update.state.doc.toString()
-            setWords(countWords(text))
-            setChars(text.length)
-            onContentChange?.(text)
+            setWords(countWords(text)); setChars(text.length); onContentChange?.(text)
           }
         }),
         EditorView.lineWrapping,
       ],
     })
-
-    const view = new EditorView({
-      state,
-      parent: editorRef.current,
-    })
-
+    const view = new EditorView({ state, parent: editorRef.current })
     viewRef.current = view
     activeKeyRef.current = note.path
-
     const endPos = view.state.doc.length
-    view.dispatch({
-      selection: { anchor: endPos },
-      scrollIntoView: false,
-    })
-    requestAnimationFrame(() => {
-      view.scrollDOM.scrollTop = view.scrollDOM.scrollHeight
-    })
-
+    view.dispatch({ selection: { anchor: endPos }, scrollIntoView: false })
+    requestAnimationFrame(() => { view.scrollDOM.scrollTop = view.scrollDOM.scrollHeight })
     view.focus()
-
     return () => view.destroy()
   }, [])
 
-  // Note switch effect
   useEffect(() => {
     const view = viewRef.current
-    if (!view) return
-    if (note.path === activeKeyRef.current) return
-
+    if (!view || note.path === activeKeyRef.current) return
     activeKeyRef.current = note.path
     setProgrammatic(true)
-
-    view.dispatch({
-      changes: {
-        from: 0,
-        to: view.state.doc.length,
-        insert: note.content,
-      },
-      scrollIntoView: false,
-    })
-
-    setWords(countWords(note.content))
-    setChars(note.content.length)
-
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: note.content }, scrollIntoView: false })
+    setWords(countWords(note.content)); setChars(note.content.length)
     requestAnimationFrame(() => {
       const endPos = view.state.doc.length
-      view.dispatch({
-        selection: { anchor: endPos },
-        scrollIntoView: false,
-      })
+      view.dispatch({ selection: { anchor: endPos }, scrollIntoView: false })
       view.scrollDOM.scrollTop = view.scrollDOM.scrollHeight
-
-      requestAnimationFrame(() => {
-        setProgrammatic(false)
-        view.focus()
-      })
+      requestAnimationFrame(() => { setProgrammatic(false); view.focus() })
     })
-
-    // New note: trigger fade-in and auto-edit title
     if (isNewNote) {
       setEntering(true)
       const t = setTimeout(() => setEntering(false), 300)
       if (!isScratch) {
-        setTitleDraft(note.title)
-        setEditingTitle(true)
+        setTitleDraft(note.title); setEditingTitle(true)
         setTimeout(() => titleInputRef.current?.select(), 80)
       }
       onNewNoteDone?.()
@@ -278,22 +207,14 @@ const Editor = forwardRef<EditorHandle, EditorProps>(function Editor({
     }
   }, [note.path, note.content])
 
-  const saveLabel = saveState === 'set'
-    ? 'Set'
-    : saveState === 'setting'
-    ? 'Setting…'
-    : 'Not set'
+  const saveLabel = saveState === 'set' ? 'Set' : saveState === 'setting' ? 'Setting…' : 'Not set'
 
   return (
-    <div
-      className={`gv-editor ${uiVisible ? 'ui-visible' : ''}`}
-      onMouseMove={showUI}
-    >
+    <div className={`gv-editor ${uiVisible ? 'ui-visible' : ''}`} onMouseMove={showUI}>
       <div className="gv-topbar">
-        <button className="gv-nav-toggle" onClick={onNavOpen} title="Navigate">
-          <span /><span /><span />
-        </button>
+        <button className="gv-nav-toggle" onClick={onNavOpen} title="Navigate"><span /><span /><span /></button>
         <div className="gv-topbar-actions">
+          {onExportPdf && <button className="gv-export-action" onClick={onExportPdf} title="Export this note as PDF">PDF</button>}
           <span className="gv-mode-tab active">Write</span>
           <span className="gv-mode-tab">Read</span>
           <span className="gv-mode-tab">Audit</span>
@@ -301,57 +222,27 @@ const Editor = forwardRef<EditorHandle, EditorProps>(function Editor({
       </div>
 
       <div className={`gv-paste-banner ${pasteBannerVisible ? 'visible' : ''}`}>
-        <span><span className="gv-paste-banner-key">Q</span> quote</span>
-        <span className="gv-paste-banner-sep">·</span>
-        <span><span className="gv-paste-banner-key">P</span> process</span>
-        <span className="gv-paste-banner-sep">·</span>
-        <span>any key plain</span>
+        <span><span className="gv-paste-banner-key">Q</span> quote</span><span className="gv-paste-banner-sep">·</span>
+        <span><span className="gv-paste-banner-key">P</span> process</span><span className="gv-paste-banner-sep">·</span><span>any key plain</span>
       </div>
 
       <div className={`gv-stage ${entering ? 'gv-entering' : ''}`}>
         <div className="gv-col">
           <div className="gv-header">
-            {isScratch ? (
-              <div className="gv-scratch-label">scratch</div>
-            ) : editingTitle ? (
-              <input
-                ref={titleInputRef}
-                className="gv-title gv-title-input"
-                value={titleDraft}
-                onChange={e => setTitleDraft(e.target.value)}
-                onBlur={handleTitleCommit}
-                onKeyDown={handleTitleKeyDown}
-              />
+            {isScratch ? <div className="gv-scratch-label">scratch</div> : editingTitle ? (
+              <input ref={titleInputRef} className="gv-title gv-title-input" value={titleDraft} onChange={e => setTitleDraft(e.target.value)} onBlur={handleTitleCommit} onKeyDown={handleTitleKeyDown} />
             ) : (
-              <h1
-                className={`gv-title ${onTitleChange ? 'gv-title-editable' : ''}`}
-                onClick={handleTitleClick}
-              >
-                {note.title}
-              </h1>
+              <h1 className={`gv-title ${onTitleChange ? 'gv-title-editable' : ''}`} onClick={handleTitleClick}>{note.title}</h1>
             )}
-            {!isScratch && (
-              <div className="gv-meta">
-                <span>{note.meta.date}</span>
-                {note.meta.tags.map(t => (
-                  <span key={t} className="gv-tag">{t}</span>
-                ))}
-                <span className="gv-type-badge">{note.meta.type}</span>
-              </div>
-            )}
+            {!isScratch && <div className="gv-meta"><span>{note.meta.date}</span>{note.meta.tags.map(t => <span key={t} className="gv-tag">{t}</span>)}<span className="gv-type-badge">{note.meta.type}</span></div>}
           </div>
           <div className="gv-cm-wrap" ref={editorRef} />
         </div>
       </div>
 
       <div className="gv-statusbar">
-        <span className="gv-stat">
-          <span className={`gv-stat-dot ${saveState}`} />
-          {saveLabel}
-        </span>
-        <span className="gv-stat">{words} words</span>
-        <span className="gv-stat">{chars} chars</span>
-        <span className="gv-stat">{readingTime(words)}</span>
+        <span className="gv-stat"><span className={`gv-stat-dot ${saveState}`} />{saveLabel}</span>
+        <span className="gv-stat">{words} words</span><span className="gv-stat">{chars} chars</span><span className="gv-stat">{readingTime(words)}</span>
       </div>
     </div>
   )
