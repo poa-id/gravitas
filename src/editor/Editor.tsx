@@ -29,6 +29,7 @@ const pathTitle=(p:string)=>{const r=p.split('/').pop()?.replace(/\.md$/,'')??''
 const kindLabel:Record<ReviewKind,string>={comment:'Comment',revisit:'Revisit',question:'Question',cut:'Cut?'}
 
 function applyReadReviews(root:HTMLElement,reviews:ReviewMark[],newReviewId:string){
+ root.querySelectorAll('.gv-review-margin-mark').forEach(mark=>mark.remove())
  root.querySelectorAll('.gv-read-review').forEach(mark=>mark.replaceWith(...Array.from(mark.childNodes)))
  root.normalize()
  const locate=(needle:string):Range|null=>{
@@ -53,6 +54,16 @@ function applyReadReviews(root:HTMLElement,reviews:ReviewMark[],newReviewId:stri
   const mark=document.createElement('span');mark.className=`gv-read-review${review.id===newReviewId?' gv-review-new':''}`;mark.dataset.kind=review.kind;mark.dataset.reviewId=review.id
   try{mark.appendChild(range.extractContents());range.insertNode(mark)}catch{return}
  })
+ requestAnimationFrame(()=>{
+  const rootRect=root.getBoundingClientRect()
+  root.querySelectorAll<HTMLElement>('.gv-read-review').forEach(mark=>{
+   const rect=mark.getBoundingClientRect()
+   const tick=document.createElement('i')
+   tick.className='gv-review-margin-mark'
+   tick.style.top=`${rect.top-rootRect.top+root.scrollTop+Math.max(5,rect.height*.45)}px`
+   root.appendChild(tick)
+  })
+ })
 }
 
 const Editor=forwardRef<EditorHandle,EditorProps>(function Editor({note,onNavOpen,onContentChange,onTitleChange,saveState='set',soundEnabled=false,pasteIntentEnabled=true,isScratch=false,isNewNote=false,onNewNoteDone,onPromote,onDeleteEntry},ref){
@@ -74,7 +85,7 @@ const Editor=forwardRef<EditorHandle,EditorProps>(function Editor({note,onNavOpe
  const changeMode=(next:EditorMode)=>{if(isScratch&&next!=='write')return;if(next==='read')setReadContent(currentContent());setShortcutsOpen(false);setReviewPoint(null);setCommenting(false);setMode(next);if(next==='audit')setActiveReview(0)}
  const persistReviews=async(next:ReviewMark[])=>{setReviews(next);await saveReviews(note.path,next)}
  const clearReviewSelection=()=>{setReviewSelection('');setReviewPoint(null);setCommenting(false);setCommentDraft('');window.getSelection()?.removeAllRanges()}
- const addReview=async(kind:ReviewKind,comment='')=>{if(!reviewSelection.trim())return;const review=makeReview(kind,reviewSelection,readContent,comment);lastReviewIdRef.current=review.id;const next=[...reviews,review];await persistReviews(next);clearReviewSelection()}
+ const addReview=async(kind:ReviewKind,comment='')=>{if(!reviewSelection.trim())return;const review=makeReview(kind,reviewSelection,readContent,comment);lastReviewIdRef.current=review.id;const next=[...reviews,review];clearReviewSelection();await persistReviews(next)}
  const beginComment=()=>{setCommenting(true);setTimeout(()=>commentInputRef.current?.focus(),0)}
  const handleReadSelection=()=>{if(mode!=='read'||commenting)return;const selection=window.getSelection();const text=selection?.toString().trim()??'';if(!text||!selection?.rangeCount){setReviewPoint(null);setReviewSelection('');return}const range=selection.getRangeAt(0);if(!readRef.current?.contains(range.commonAncestorContainer))return;const rect=range.getBoundingClientRect();setReviewSelection(text);setReviewPoint({x:Math.min(window.innerWidth-180,rect.left+rect.width/2),y:Math.max(46,rect.top-8)})}
  const goReview=(index:number)=>{if(!openReviews.length)return;const next=(index+openReviews.length)%openReviews.length;setActiveReview(next);const target=openReviews[next],v=viewRef.current;if(!v)return;const found=locateReview(target,v.state.doc.toString());if(found)v.dispatch({selection:{anchor:found.from,head:found.to},scrollIntoView:true})}
