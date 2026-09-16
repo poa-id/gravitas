@@ -60,7 +60,7 @@ export function makeReview(kind: ReviewKind, selectedText: string, source: strin
   }
 }
 
-function whitespaceFlexibleMatch(needle: string, source: string): { from: number; to: number } | null {
+function markdownFlexibleMatch(needle: string, source: string): { from: number; to: number } | null {
   const tokens = needle.trim().split(/\s+/).filter(Boolean)
   if (!tokens.length) return null
   let searchFrom = 0
@@ -70,9 +70,13 @@ function whitespaceFlexibleMatch(needle: string, source: string): { from: number
     let cursor = first + tokens[0].length
     let matched = true
     for (let i = 1; i < tokens.length; i++) {
-      const ws = source.slice(cursor).match(/^\s+/)
-      if (!ws) { matched = false; break }
-      cursor += ws[0].length
+      // Read mode hides Markdown blockquote syntax. Between visible words the raw
+      // source may therefore contain whitespace plus one or more `>` markers.
+      // Keep the returned range in raw Markdown coordinates so CodeMirror can
+      // select and edit the actual source in Audit.
+      const separator = source.slice(cursor).match(/^(?:\s|>)+/)
+      if (!separator) { matched = false; break }
+      cursor += separator[0].length
       if (!source.startsWith(tokens[i], cursor)) { matched = false; break }
       cursor += tokens[i].length
     }
@@ -91,7 +95,7 @@ export function locateReview(review: ReviewMark, source: string): { from: number
     matches.push(at)
     from = at + Math.max(1, review.selectedText.length)
   }
-  if (!matches.length) return whitespaceFlexibleMatch(review.selectedText, source)
+  if (!matches.length) return markdownFlexibleMatch(review.selectedText, source)
   if (matches.length === 1) return { from: matches[0], to: matches[0] + review.selectedText.length }
   let best = matches[0], bestScore = -1
   for (const at of matches) {
