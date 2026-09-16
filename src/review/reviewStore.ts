@@ -76,7 +76,9 @@ export function locateReview(review: ReviewMark, source: string): { from: number
     const before = source.slice(Math.max(0, at - review.contextBefore.length), at)
     const after = source.slice(at + review.selectedText.length, at + review.selectedText.length + review.contextAfter.length)
     let score = 0
-    for (let i = 1; i <= Math.min(before.length, review.contextBefore.length); i++) if (before.at(-i) === review.contextBefore.at(-i)) score++
+    for (let i = 1; i <= Math.min(before.length, review.contextBefore.length); i++) {
+      if (before[before.length - i] === review.contextBefore[review.contextBefore.length - i]) score++
+    }
     for (let i = 0; i < Math.min(after.length, review.contextAfter.length); i++) if (after[i] === review.contextAfter[i]) score++
     if (score > bestScore) { best = at; bestScore = score }
   }
