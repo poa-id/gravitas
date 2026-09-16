@@ -2,15 +2,14 @@ import { writeTextFile, mkdir, exists, rename } from '@tauri-apps/plugin-fs'
 import type { NoteFile } from './workshopAdapter'
 
 export function titleToFilename(title: string): string {
+  // Keep the writer's title intact wherever the filesystem allows it. The filename is
+  // part of the user's plain-file archive, not a slug for a database or URL.
   return title
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 60)
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/[. ]+$/g, '')
+    .slice(0, 120)
     || 'untitled'
 }
 
@@ -48,8 +47,6 @@ export async function createNewNote(
   return { name: filename, path: fullPath, shelf }
 }
 
-// Renames the file on disk and returns the new NoteFile
-// Returns null if rename is not possible (collision, same name, folio)
 export async function renameNoteOnDisk(
   note: NoteFile,
   newTitle: string,
