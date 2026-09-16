@@ -28,11 +28,38 @@ const readingTime=(w:number)=>{const m=Math.ceil(w/200);return m<1?'< 1 min':`~$
 const pathTitle=(p:string)=>{const r=p.split('/').pop()?.replace(/\.md$/,'')??'';return r&&r!=='untitled'?r:''}
 const kindLabel:Record<ReviewKind,string>={comment:'Comment',revisit:'Revisit',question:'Question',cut:'Cut?'}
 
+function applyReadReviews(root:HTMLElement,reviews:ReviewMark[],newReviewId:string){
+ root.querySelectorAll('.gv-read-review').forEach(mark=>mark.replaceWith(...Array.from(mark.childNodes)))
+ root.normalize()
+ const locate=(needle:string):Range|null=>{
+  if(!needle)return null
+  const full=root.textContent??''
+  const start=full.indexOf(needle)
+  if(start<0)return null
+  const end=start+needle.length
+  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT)
+  let node:Node|null=walker.nextNode(),offset=0,startNode:Node|null=null,endNode:Node|null=null,startOffset=0,endOffset=0
+  while(node){
+   const length=node.textContent?.length??0
+   if(!startNode&&start>=offset&&start<=offset+length){startNode=node;startOffset=start-offset}
+   if(endNode===null&&end>=offset&&end<=offset+length){endNode=node;endOffset=end-offset;break}
+   offset+=length;node=walker.nextNode()
+  }
+  if(!startNode||!endNode)return null
+  const range=document.createRange();range.setStart(startNode,startOffset);range.setEnd(endNode,endOffset);return range
+ }
+ reviews.filter(r=>r.status==='open').forEach(review=>{
+  const range=locate(review.selectedText);if(!range)return
+  const mark=document.createElement('span');mark.className=`gv-read-review${review.id===newReviewId?' gv-review-new':''}`;mark.dataset.kind=review.kind;mark.dataset.reviewId=review.id
+  try{mark.appendChild(range.extractContents());range.insertNode(mark)}catch{return}
+ })
+}
+
 const Editor=forwardRef<EditorHandle,EditorProps>(function Editor({note,onNavOpen,onContentChange,onTitleChange,saveState='set',soundEnabled=false,pasteIntentEnabled=true,isScratch=false,isNewNote=false,onNewNoteDone,onPromote,onDeleteEntry},ref){
  const editorRef=useRef<HTMLDivElement>(null),viewRef=useRef<EditorView|null>(null),readRef=useRef<HTMLElement>(null)
  const [words,setWords]=useState(countWords(note.content)),[chars,setChars]=useState(note.content.length),[uiVisible,setUiVisible]=useState(false),[shortcutsOpen,setShortcutsOpen]=useState(false),[mode,setMode]=useState<EditorMode>('write'),[readContent,setReadContent]=useState(note.content)
  const [reviews,setReviews]=useState<ReviewMark[]>([]),[activeReview,setActiveReview]=useState(0),[reviewSelection,setReviewSelection]=useState(''),[reviewPoint,setReviewPoint]=useState<{x:number;y:number}|null>(null),[commenting,setCommenting]=useState(false),[commentDraft,setCommentDraft]=useState('')
- const uiTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null),activeKeyRef=useRef(''),soundEnabledRef=useRef(soundEnabled),pasteIntentEnabledRef=useRef(pasteIntentEnabled),isScratchRef=useRef(isScratch)
+ const uiTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null),activeKeyRef=useRef(''),soundEnabledRef=useRef(soundEnabled),pasteIntentEnabledRef=useRef(pasteIntentEnabled),isScratchRef=useRef(isScratch),lastReviewIdRef=useRef('')
  const [editingTitle,setEditingTitle]=useState(false),[titleDraft,setTitleDraft]=useState(''),titleInputRef=useRef<HTMLInputElement>(null),commentInputRef=useRef<HTMLInputElement>(null),[pasteBannerVisible,setPasteBannerVisible]=useState(false),[entering,setEntering]=useState(false)
  const onPromoteRef=useRef(onPromote),onDeleteEntryRef=useRef(onDeleteEntry)
  useEffect(()=>{soundEnabledRef.current=soundEnabled},[soundEnabled]);useEffect(()=>{pasteIntentEnabledRef.current=pasteIntentEnabled},[pasteIntentEnabled]);useEffect(()=>{isScratchRef.current=isScratch},[isScratch]);useEffect(()=>{onPromoteRef.current=onPromote},[onPromote]);useEffect(()=>{onDeleteEntryRef.current=onDeleteEntry},[onDeleteEntry])
@@ -47,7 +74,7 @@ const Editor=forwardRef<EditorHandle,EditorProps>(function Editor({note,onNavOpe
  const changeMode=(next:EditorMode)=>{if(isScratch&&next!=='write')return;if(next==='read')setReadContent(currentContent());setShortcutsOpen(false);setReviewPoint(null);setCommenting(false);setMode(next);if(next==='audit')setActiveReview(0)}
  const persistReviews=async(next:ReviewMark[])=>{setReviews(next);await saveReviews(note.path,next)}
  const clearReviewSelection=()=>{setReviewSelection('');setReviewPoint(null);setCommenting(false);setCommentDraft('');window.getSelection()?.removeAllRanges()}
- const addReview=async(kind:ReviewKind,comment='')=>{if(!reviewSelection.trim())return;const next=[...reviews,makeReview(kind,reviewSelection,readContent,comment)];await persistReviews(next);clearReviewSelection()}
+ const addReview=async(kind:ReviewKind,comment='')=>{if(!reviewSelection.trim())return;const review=makeReview(kind,reviewSelection,readContent,comment);lastReviewIdRef.current=review.id;const next=[...reviews,review];await persistReviews(next);clearReviewSelection()}
  const beginComment=()=>{setCommenting(true);setTimeout(()=>commentInputRef.current?.focus(),0)}
  const handleReadSelection=()=>{if(mode!=='read'||commenting)return;const selection=window.getSelection();const text=selection?.toString().trim()??'';if(!text||!selection?.rangeCount){setReviewPoint(null);setReviewSelection('');return}const range=selection.getRangeAt(0);if(!readRef.current?.contains(range.commonAncestorContainer))return;const rect=range.getBoundingClientRect();setReviewSelection(text);setReviewPoint({x:Math.min(window.innerWidth-180,rect.left+rect.width/2),y:Math.max(46,rect.top-8)})}
  const goReview=(index:number)=>{if(!openReviews.length)return;const next=(index+openReviews.length)%openReviews.length;setActiveReview(next);const target=openReviews[next],v=viewRef.current;if(!v)return;const found=locateReview(target,v.state.doc.toString());if(found)v.dispatch({selection:{anchor:found.from,head:found.to},scrollIntoView:true})}
@@ -58,6 +85,7 @@ const Editor=forwardRef<EditorHandle,EditorProps>(function Editor({note,onNavOpe
  useEffect(()=>{let alive=true;loadReviews(note.path).then(r=>{if(alive)setReviews(r)});return()=>{alive=false}},[note.path])
  useEffect(()=>{const v=viewRef.current;if(!v||note.path===activeKeyRef.current)return;activeKeyRef.current=note.path;setMode('write');setReadContent(note.content);setReviews([]);setProgrammatic(true);v.dispatch({changes:{from:0,to:v.state.doc.length,insert:note.content},scrollIntoView:false});setWords(countWords(note.content));setChars(note.content.length);requestAnimationFrame(()=>{const end=v.state.doc.length;v.dispatch({selection:{anchor:end},scrollIntoView:false});v.scrollDOM.scrollTop=v.scrollDOM.scrollHeight;requestAnimationFrame(()=>{setProgrammatic(false);v.focus()})});if(isNewNote){setEntering(true);const t=setTimeout(()=>setEntering(false),300);if(!isScratch){setTitleDraft(pathTitle(note.path)||note.title);setEditingTitle(true);setTimeout(()=>titleInputRef.current?.select(),80)}onNewNoteDone?.();return()=>clearTimeout(t)}},[note.path,note.content])
  useEffect(()=>{const v=viewRef.current;if(!v)return;v.contentDOM.spellcheck=mode==='audit';if(mode==='write'||mode==='audit')requestAnimationFrame(()=>v.focus());if(mode==='audit'&&openReviews.length)requestAnimationFrame(()=>goReview(0))},[mode])
+ useEffect(()=>{if(mode!=='read'||!readRef.current)return;const frame=requestAnimationFrame(()=>{if(readRef.current)applyReadReviews(readRef.current,openReviews,lastReviewIdRef.current)});return()=>cancelAnimationFrame(frame)},[mode,readContent,reviews])
  useEffect(()=>{const onKey=(e:KeyboardEvent)=>{if((e.metaKey||e.ctrlKey)&&['1','2','3'].includes(e.key)){e.preventDefault();changeMode(e.key==='1'?'write':e.key==='2'?'read':'audit');return}if(mode==='read'){if(e.key==='Escape'){e.preventDefault();if(commenting)clearReviewSelection();else changeMode('write');return}if(reviewSelection&&!commenting&&!e.metaKey&&!e.ctrlKey&&!e.altKey){const k=e.key.toLowerCase();if(k==='c'){e.preventDefault();beginComment()}else if(k==='r'){e.preventDefault();void addReview('revisit')}else if(e.key==='?'){e.preventDefault();void addReview('question')}else if(k==='x'){e.preventDefault();void addReview('cut')}}}if(mode==='audit'&&(e.metaKey||e.ctrlKey)&&e.key==='Enter'){e.preventDefault();void resolveActive()}if(mode==='audit'&&e.altKey&&e.key==='ArrowDown'){e.preventDefault();goReview(activeReview+1)}if(mode==='audit'&&e.altKey&&e.key==='ArrowUp'){e.preventDefault();goReview(activeReview-1)}};window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey)},[mode,reviewSelection,commenting,reviews,activeReview,readContent])
  const saveLabel=saveState==='set'?'Set':saveState==='setting'?'Setting…':'Not set'
  const handleExportPdf=()=>exportNoteAsPdf(displayTitle,currentContent())
