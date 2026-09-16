@@ -13,11 +13,14 @@ export default function EmptyState({ onOpen }: EmptyStateProps) {
         <p className="gv-empty-sub">
           A place for thought. No more, no less.
         </p>
+        <p className="gv-empty-explain">
+          Choose a folder to use as your workshop. Gravitas writes ordinary Markdown files there — no account, no cloud, no lock-in.
+        </p>
         <button className="gv-empty-btn" onClick={onOpen}>
           Open a workshop
         </button>
         <p className="gv-empty-hint">
-          Choose a folder. Your files stay yours.
+          Your files stay yours.
         </p>
       </div>
     </div>
