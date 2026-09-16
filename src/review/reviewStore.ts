@@ -60,6 +60,28 @@ export function makeReview(kind: ReviewKind, selectedText: string, source: strin
   }
 }
 
+function whitespaceFlexibleMatch(needle: string, source: string): { from: number; to: number } | null {
+  const tokens = needle.trim().split(/\s+/).filter(Boolean)
+  if (!tokens.length) return null
+  let searchFrom = 0
+  while (searchFrom < source.length) {
+    const first = source.indexOf(tokens[0], searchFrom)
+    if (first < 0) return null
+    let cursor = first + tokens[0].length
+    let matched = true
+    for (let i = 1; i < tokens.length; i++) {
+      const ws = source.slice(cursor).match(/^\s+/)
+      if (!ws) { matched = false; break }
+      cursor += ws[0].length
+      if (!source.startsWith(tokens[i], cursor)) { matched = false; break }
+      cursor += tokens[i].length
+    }
+    if (matched) return { from: first, to: cursor }
+    searchFrom = first + Math.max(1, tokens[0].length)
+  }
+  return null
+}
+
 export function locateReview(review: ReviewMark, source: string): { from: number; to: number } | null {
   const matches: number[] = []
   let from = 0
@@ -69,7 +91,7 @@ export function locateReview(review: ReviewMark, source: string): { from: number
     matches.push(at)
     from = at + Math.max(1, review.selectedText.length)
   }
-  if (!matches.length) return null
+  if (!matches.length) return whitespaceFlexibleMatch(review.selectedText, source)
   if (matches.length === 1) return { from: matches[0], to: matches[0] + review.selectedText.length }
   let best = matches[0], bestScore = -1
   for (const at of matches) {
