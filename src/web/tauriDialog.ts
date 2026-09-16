@@ -8,7 +8,7 @@ export async function open(options?: { directory?: boolean; multiple?: boolean; 
   }
   try {
     const handle = await picker.call(window, { mode: 'readwrite' })
-    setWebRoot(handle)
+    await setWebRoot(handle)
     return webPathForRoot()
   } catch (err: any) {
     if (err?.name === 'AbortError') return null
