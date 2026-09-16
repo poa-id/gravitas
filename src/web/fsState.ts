@@ -8,11 +8,11 @@ const ROOT_KEY = 'workshop-root'
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1)
+    const request = indexedDB.open(DB_NAME, 2)
     request.onupgradeneeded = () => {
-      if (!request.result.objectStoreNames.contains(STORE_NAME)) {
-        request.result.createObjectStore(STORE_NAME)
-      }
+      const db = request.result
+      if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME)
+      if (!db.objectStoreNames.contains('preferences')) db.createObjectStore('preferences')
     }
     request.onsuccess = () => resolve(request.result)
     request.onerror = () => reject(request.error)
