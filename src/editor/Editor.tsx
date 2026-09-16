@@ -30,8 +30,9 @@ const kindLabel:Record<ReviewKind,string>={comment:'Comment',revisit:'Revisit',q
 
 function applyReadReviews(root:HTMLElement,reviews:ReviewMark[]){
  root.querySelectorAll('.gv-review-margin-mark').forEach(mark=>mark.remove())
- root.querySelectorAll('.gv-read-review').forEach(mark=>mark.replaceWith(...Array.from(mark.childNodes)))
- root.normalize()
+ const highlightRegistry=(CSS as unknown as {highlights?:{set:(name:string,value:unknown)=>void;delete:(name:string)=>void}}).highlights
+ const HighlightCtor=(window as unknown as {Highlight?:new(...ranges:Range[])=>unknown}).Highlight
+ highlightRegistry?.delete('gravitas-reviews')
  const locate=(needle:string):Range|null=>{
   if(!needle)return null
   const full=root.textContent??''
@@ -49,15 +50,12 @@ function applyReadReviews(root:HTMLElement,reviews:ReviewMark[]){
   if(!startNode||!endNode)return null
   const range=document.createRange();range.setStart(startNode,startOffset);range.setEnd(endNode,endOffset);return range
  }
- reviews.filter(r=>r.status==='open').forEach(review=>{
-  const range=locate(review.selectedText);if(!range)return
-  const mark=document.createElement('span');mark.className='gv-read-review';mark.dataset.kind=review.kind;mark.dataset.reviewId=review.id
-  try{mark.appendChild(range.extractContents());range.insertNode(mark)}catch{return}
- })
+ const ranges=reviews.filter(r=>r.status==='open').map(review=>locate(review.selectedText)).filter((range):range is Range=>range!==null)
+ if(highlightRegistry&&HighlightCtor&&ranges.length)highlightRegistry.set('gravitas-reviews',new HighlightCtor(...ranges))
  requestAnimationFrame(()=>{
   const rootRect=root.getBoundingClientRect()
-  root.querySelectorAll<HTMLElement>('.gv-read-review').forEach(mark=>{
-   const rect=mark.getBoundingClientRect()
+  ranges.forEach(range=>{
+   const rect=range.getBoundingClientRect();if(!rect.width&&!rect.height)return
    const tick=document.createElement('i');tick.className='gv-review-margin-mark';tick.style.top=`${rect.top-rootRect.top+root.scrollTop+Math.max(5,rect.height*.45)}px`;root.appendChild(tick)
   })
  })
@@ -94,7 +92,7 @@ const Editor=forwardRef<EditorHandle,EditorProps>(function Editor({note,onNavOpe
  useEffect(()=>{const v=viewRef.current;if(!v||note.path===activeKeyRef.current)return;activeKeyRef.current=note.path;setMode('write');setReadContent(note.content);setReviews([]);setProgrammatic(true);v.dispatch({changes:{from:0,to:v.state.doc.length,insert:note.content},scrollIntoView:false});setWords(countWords(note.content));setChars(note.content.length);requestAnimationFrame(()=>{const end=v.state.doc.length;v.dispatch({selection:{anchor:end},scrollIntoView:false});v.scrollDOM.scrollTop=v.scrollDOM.scrollHeight;requestAnimationFrame(()=>{setProgrammatic(false);v.focus()})});if(isNewNote){setEntering(true);const t=setTimeout(()=>setEntering(false),300);if(!isScratch){setTitleDraft(pathTitle(note.path)||note.title);setEditingTitle(true);setTimeout(()=>titleInputRef.current?.select(),80)}onNewNoteDone?.();return()=>clearTimeout(t)}},[note.path,note.content])
  useEffect(()=>{const v=viewRef.current;if(!v)return;v.contentDOM.spellcheck=mode==='audit';if(mode==='write')requestAnimationFrame(()=>v.focus());if(mode==='audit'&&openReviews.length)requestAnimationFrame(()=>goReview(0))},[mode])
  useEffect(()=>{if(mode!=='audit'||!openReviews.length)return;requestAnimationFrame(()=>goReview(activeReview))},[mode,activeReview,reviews])
- useEffect(()=>{if(mode!=='read'||!readRef.current)return;let cancelled=false;const paint=()=>{if(!cancelled&&readRef.current)applyReadReviews(readRef.current,openReviews)};const frame=requestAnimationFrame(()=>{paint();requestAnimationFrame(paint)});return()=>{cancelled=true;cancelAnimationFrame(frame)}},[mode,readContent,reviews])
+ useEffect(()=>{if(mode!=='read'||!readRef.current)return;const root=readRef.current;const frame=requestAnimationFrame(()=>applyReadReviews(root,openReviews));return()=>{cancelAnimationFrame(frame);(CSS as unknown as {highlights?:{delete:(name:string)=>void}}).highlights?.delete('gravitas-reviews')}},[mode,readContent,reviews])
  useEffect(()=>{if(mode!=='read')return;const onSelectionChange=()=>{if(commenting)return;const selection=window.getSelection();if(!selection||selection.isCollapsed)return;captureReadSelection()};document.addEventListener('selectionchange',onSelectionChange);return()=>document.removeEventListener('selectionchange',onSelectionChange)},[mode,commenting])
  useEffect(()=>{const onKey=(e:KeyboardEvent)=>{if((e.metaKey||e.ctrlKey)&&['1','2','3'].includes(e.key)){e.preventDefault();changeMode(e.key==='1'?'write':e.key==='2'?'read':'audit');return}if(mode==='read'){if(e.key==='Escape'){e.preventDefault();if(commenting)clearReviewSelection();else changeMode('write');return}if(reviewSelection&&!commenting&&!e.metaKey&&!e.ctrlKey&&!e.altKey){const k=e.key.toLowerCase();if(k==='c'){e.preventDefault();beginComment()}else if(k==='r'){e.preventDefault();void addReview('revisit')}else if(e.key==='?'){e.preventDefault();void addReview('question')}else if(k==='x'){e.preventDefault();void addReview('cut')}}}if(mode==='audit'&&(e.metaKey||e.ctrlKey)&&e.key==='Enter'){e.preventDefault();void resolveActive()}if(mode==='audit'&&e.altKey&&e.key==='ArrowDown'){e.preventDefault();goReview(activeReview+1)}if(mode==='audit'&&e.altKey&&e.key==='ArrowUp'){e.preventDefault();goReview(activeReview-1)}};window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey)},[mode,reviewSelection,commenting,reviews,activeReview,readContent])
  const saveLabel=saveState==='set'?'Set':saveState==='setting'?'Setting…':'Not set'
