@@ -21,7 +21,7 @@ const DEFAULT_PREFERENCES: GravitasPreferences = {
   soundEnabled: true,
   pasteIntentEnabled: true,
   seenScratchToast: false,
-  interfaceSize: 'small',
+  interfaceSize: 'regular',
 }
 
 async function getStore() {
