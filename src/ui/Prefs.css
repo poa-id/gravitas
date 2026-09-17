@@ -35,6 +35,16 @@
   color: var(--text-dimmer);
 }
 
+.gv-prefs-close,
+.gv-prefs-option,
+.gv-prefs-action {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+}
+
 .gv-prefs-close {
   font-family: var(--font-ui);
   font-size: 11px;
@@ -73,6 +83,7 @@
 .gv-prefs-options {
   display: flex;
   gap: 20px;
+  flex-wrap: wrap;
 }
 
 .gv-prefs-option {
@@ -84,13 +95,19 @@
   user-select: none;
 }
 
-.gv-prefs-option:hover {
-  color: var(--text);
-}
+.gv-prefs-option:hover { color: var(--text); }
 
 .gv-prefs-option.active {
   color: var(--text);
   font-weight: 500;
+}
+
+.gv-prefs-close:focus-visible,
+.gv-prefs-option:focus-visible,
+.gv-prefs-action:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 1px;
 }
 
 .gv-prefs-divider {
@@ -115,9 +132,7 @@
   user-select: none;
 }
 
-.gv-prefs-action:hover {
-  color: var(--text);
-}
+.gv-prefs-action:hover { color: var(--text); }
 
 .gv-prefs-footer {
   padding: 12px 24px;
