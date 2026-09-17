@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getPreferences, setPreference, type GravitasPreferences } from '../workshop/preferences'
+import { getPreferences, setPreference, type GravitasPreferences, type InterfaceSize } from '../workshop/preferences'
 import { open } from '@tauri-apps/plugin-dialog'
 import './Prefs.css'
 
@@ -7,13 +7,23 @@ interface PrefsProps {
   open: boolean
   onClose: () => void
   onWorkshopChange: (path: string) => void
-  onSoundChange: (enabled: boolean) => void        // ← add
-  onPasteIntentChange: (enabled: boolean) => void  // ← add
+  onSoundChange: (enabled: boolean) => void
+  onPasteIntentChange: (enabled: boolean) => void
 }
 
+function applyInterfaceSize(size: InterfaceSize) {
+  document.documentElement.dataset.uiSize = size
+}
 
 export default function Prefs({ open: isOpen, onClose, onWorkshopChange, onSoundChange, onPasteIntentChange }: PrefsProps) {
   const [prefs, setPrefs] = useState<GravitasPreferences | null>(null)
+
+  useEffect(() => {
+    getPreferences().then(next => {
+      setPrefs(next)
+      applyInterfaceSize(next.interfaceSize)
+    })
+  }, [])
 
   useEffect(() => {
     if (!isOpen) return
@@ -27,7 +37,7 @@ export default function Prefs({ open: isOpen, onClose, onWorkshopChange, onSound
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [isOpen])
+  }, [isOpen, onClose])
 
   async function toggle<K extends keyof GravitasPreferences>(
     key: K,
@@ -37,72 +47,92 @@ export default function Prefs({ open: isOpen, onClose, onWorkshopChange, onSound
     setPrefs(prev => prev ? { ...prev, [key]: value } : prev)
   }
 
+  async function setInterfaceSize(size: InterfaceSize) {
+    applyInterfaceSize(size)
+    await toggle('interfaceSize', size)
+  }
+
   if (!isOpen || !prefs) return null
 
   return (
     <div className="gv-prefs-overlay" onClick={onClose}>
-      <div className="gv-prefs" onClick={e => e.stopPropagation()}>
+      <div className="gv-prefs" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Preferences">
 
         <div className="gv-prefs-header">
           <span className="gv-prefs-title">Preferences</span>
-          <span className="gv-prefs-close" onClick={onClose}>← back</span>
+          <button className="gv-prefs-close" onClick={onClose}>← back</button>
         </div>
 
         <div className="gv-prefs-body">
 
-          {/* Sound */}
+          <div className="gv-prefs-row">
+            <span className="gv-prefs-label">Interface size</span>
+            <div className="gv-prefs-options" aria-label="Interface size">
+              {(['small', 'regular', 'large'] as InterfaceSize[]).map(size => (
+                <button
+                  key={size}
+                  className={`gv-prefs-option ${prefs.interfaceSize === size ? 'active' : ''}`}
+                  aria-pressed={prefs.interfaceSize === size}
+                  onClick={() => setInterfaceSize(size)}
+                >{size.charAt(0).toUpperCase() + size.slice(1)}</button>
+              ))}
+            </div>
+          </div>
+
           <div className="gv-prefs-row">
             <span className="gv-prefs-label">Sound</span>
             <div className="gv-prefs-options">
-              <span
+              <button
                 className={`gv-prefs-option ${prefs.soundEnabled !== false ? 'active' : ''}`}
+                aria-pressed={prefs.soundEnabled !== false}
                 onClick={() => { toggle('soundEnabled', true); onSoundChange(true) }}
-              >On</span>
-              <span
+              >On</button>
+              <button
                 className={`gv-prefs-option ${prefs.soundEnabled === false ? 'active' : ''}`}
+                aria-pressed={prefs.soundEnabled === false}
                 onClick={() => { toggle('soundEnabled', false); onSoundChange(false) }}
-              >Off</span>
+              >Off</button>
             </div>
           </div>
 
-          {/* On open */}
           <div className="gv-prefs-row">
             <span className="gv-prefs-label">On open</span>
             <div className="gv-prefs-options">
-              <span
+              <button
                 className={`gv-prefs-option ${prefs.onOpen === 'resume' ? 'active' : ''}`}
+                aria-pressed={prefs.onOpen === 'resume'}
                 onClick={() => toggle('onOpen', 'resume')}
-              >Resume last note</span>
-              <span
+              >Resume last note</button>
+              <button
                 className={`gv-prefs-option ${prefs.onOpen === 'folio' ? 'active' : ''}`}
+                aria-pressed={prefs.onOpen === 'folio'}
                 onClick={() => toggle('onOpen', 'folio')}
-              >Today's folio</span>
+              >Today's folio</button>
             </div>
           </div>
 
-          {/* Paste intent */}
           <div className="gv-prefs-row">
             <span className="gv-prefs-label">Paste intent</span>
             <div className="gv-prefs-options">
-              <span
+              <button
                 className={`gv-prefs-option ${prefs.pasteIntentEnabled !== false ? 'active' : ''}`}
+                aria-pressed={prefs.pasteIntentEnabled !== false}
                 onClick={() => { toggle('pasteIntentEnabled', true); onPasteIntentChange(true) }}
-              >On</span>
-              <span
+              >On</button>
+              <button
                 className={`gv-prefs-option ${prefs.pasteIntentEnabled === false ? 'active' : ''}`}
+                aria-pressed={prefs.pasteIntentEnabled === false}
                 onClick={() => { toggle('pasteIntentEnabled', false); onPasteIntentChange(false) }}
-              >Off</span>
+              >Off</button>
             </div>
           </div>
 
-          {/* Divider */}
           <div className="gv-prefs-divider" />
 
-          {/* Workshop */}
           <div className="gv-prefs-row gv-prefs-row-col">
             <span className="gv-prefs-label">Workshop</span>
             <span className="gv-prefs-path">{prefs.lastWorkshopPath || '—'}</span>
-            <span
+            <button
               className="gv-prefs-action"
               onClick={async () => {
                 const selected = await open({
@@ -115,23 +145,22 @@ export default function Prefs({ open: isOpen, onClose, onWorkshopChange, onSound
                   onClose()
                 }
               }}
-            >Open different workshop →</span>
+            >Open different workshop →</button>
           </div>
 
-          {/* Known workshops */}
           {prefs.knownWorkshops && prefs.knownWorkshops.length > 1 && (
             <div className="gv-prefs-row gv-prefs-row-col">
               <span className="gv-prefs-label">Recent workshops</span>
               {prefs.knownWorkshops
                 .filter(p => p !== prefs.lastWorkshopPath)
                 .map(p => (
-                  <span
+                  <button
                     key={p}
                     className="gv-prefs-action"
                     onClick={() => { onWorkshopChange(p); onClose() }}
                   >
                     {p.split('/').pop()} →
-                  </span>
+                  </button>
                 ))}
             </div>
           )}
