@@ -69,8 +69,12 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
   private languageHandler: (event: Event) => void
 
   constructor(private view: EditorView) {
+    view.contentDOM.spellcheck = false
     const editor = view.dom.closest('.gv-editor')
-    this.modeObserver = new MutationObserver(() => this.view.dispatch({ effects: refreshSpellcheck.of(null) }))
+    this.modeObserver = new MutationObserver(() => {
+      view.contentDOM.spellcheck = false
+      this.view.dispatch({ effects: refreshSpellcheck.of(null) })
+    })
     if (editor) this.modeObserver.observe(editor, { attributes: true, attributeFilter: ['class'] })
 
     this.languageHandler = (event: Event) => {
