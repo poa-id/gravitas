@@ -19,7 +19,8 @@
   ],
   "r2_buckets": [
     {
-      "binding": "SNAPSHOTS"
+      "binding": "SNAPSHOTS",
+      "bucket_name": "gravitas-review-snapshots"
     }
   ]
 }
