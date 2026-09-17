@@ -8,7 +8,8 @@
     "crons": ["17 * * * *"]
   },
   "vars": {
-    "PUBLIC_REVIEW_BASE_URL": "https://gravitas-review.pjoa93.workers.dev"
+    "PUBLIC_REVIEW_BASE_URL": "https://gravitas-review.pjoa93.workers.dev",
+    "ALLOWED_ORIGINS": "https://gravitas-git-feature-share-for-review-poaids-projects.vercel.app"
   },
   "d1_databases": [
     {
