@@ -106,6 +106,7 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
   private grammarLinter: any = null
   private grammarTimer: ReturnType<typeof setTimeout> | null = null
   private grammarRun = 0
+  private refreshQueued = false
   private menu: HTMLDivElement | null = null
   private modeObserver: MutationObserver
   private languageHandler: (event: Event) => void
@@ -178,7 +179,14 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
     })
   }
 
-  private refresh() { this.view.dispatch({ effects: refreshSpellcheck.of(null) }) }
+  private refresh() {
+    if (this.disposed || this.refreshQueued) return
+    this.refreshQueued = true
+    queueMicrotask(() => {
+      this.refreshQueued = false
+      if (!this.disposed) this.view.dispatch({ effects: refreshSpellcheck.of(null) })
+    })
+  }
   private closeMenu() { this.menu?.remove(); this.menu = null }
 
   private async loadWorkshopWords(path?: string | null) {
