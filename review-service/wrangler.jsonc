@@ -8,12 +8,13 @@
     "crons": ["17 * * * *"]
   },
   "vars": {
-    "PUBLIC_REVIEW_BASE_URL": "http://localhost:8787"
+    "PUBLIC_REVIEW_BASE_URL": "https://gravitas-review.workers.dev"
   },
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "gravitas-review"
+      "database_name": "gravitas-review",
+      "migrations_dir": "migrations"
     }
   ],
   "r2_buckets": [
