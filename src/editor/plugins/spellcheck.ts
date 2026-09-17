@@ -325,7 +325,7 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
   destroy() {
     this.disposed = true
     if (this.grammarTimer) clearTimeout(this.grammarTimer)
-    if (this.grammarLinter) void this.grammarLinter.dispose()
+    if (this.grammarLinter) void Promise.resolve(this.grammarLinter.dispose()).catch(() => {})
     this.closeMenu(); this.modeObserver.disconnect(); this.view.contentDOM.removeEventListener('pointerdown', this.pointerHandler); this.view.contentDOM.removeEventListener('focusin', this.focusHandler)
     window.removeEventListener(SPELLCHECK_LANGUAGE_EVENT, this.languageHandler); window.removeEventListener('pointerdown', this.outsideHandler); window.removeEventListener('keydown', this.keyHandler)
   }
