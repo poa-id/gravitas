@@ -14,6 +14,7 @@ export interface ReviewMark {
   createdAt: string
   resolvedAt?: string
   reviewerName?: string
+  reviewerNote?: string
   reviewSessionId?: string
   reviewSubmissionId?: string
 }
@@ -73,10 +74,6 @@ function markdownFlexibleMatch(needle: string, source: string): { from: number; 
     let cursor = first + tokens[0].length
     let matched = true
     for (let i = 1; i < tokens.length; i++) {
-      // Read mode hides Markdown blockquote syntax. Between visible words the raw
-      // source may therefore contain whitespace plus one or more `>` markers.
-      // Keep the returned range in raw Markdown coordinates so CodeMirror can
-      // select and edit the actual source in Audit.
       const separator = source.slice(cursor).match(/^(?:\s|>)+/)
       if (!separator) { matched = false; break }
       cursor += separator[0].length
@@ -100,7 +97,7 @@ export function locateReview(review: ReviewMark, source: string): { from: number
   }
   if (!matches.length) return markdownFlexibleMatch(review.selectedText, source)
   if (matches.length === 1) return { from: matches[0], to: matches[0] + review.selectedText.length }
-  let best = matches[0], bestScore = -1
+  let best = matches[0], bestScore = -1, tied = false
   for (const at of matches) {
     const before = source.slice(Math.max(0, at - review.contextBefore.length), at)
     const after = source.slice(at + review.selectedText.length, at + review.selectedText.length + review.contextAfter.length)
@@ -109,7 +106,11 @@ export function locateReview(review: ReviewMark, source: string): { from: number
       if (before[before.length - i] === review.contextBefore[review.contextBefore.length - i]) score++
     }
     for (let i = 0; i < Math.min(after.length, review.contextAfter.length); i++) if (after[i] === review.contextAfter[i]) score++
-    if (score > bestScore) { best = at; bestScore = score }
+    if (score > bestScore) { best = at; bestScore = score; tied = false }
+    else if (score === bestScore) tied = true
   }
+  // Ambiguous repeated passages must fail visibly in Audit rather than silently
+  // attaching a review mark to an arbitrary occurrence.
+  if (tied || bestScore <= 0) return null
   return { from: best, to: best + review.selectedText.length }
 }
