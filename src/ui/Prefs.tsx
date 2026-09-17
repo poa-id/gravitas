@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getPreferences, setPreference, type GravitasPreferences, type InterfaceSize, type SpellcheckLanguage } from '../workshop/preferences'
+import { SPELLCHECK_LANGUAGE_EVENT } from '../editor/plugins/spellcheck'
 import { open } from '@tauri-apps/plugin-dialog'
 import './Prefs.css'
 
@@ -52,6 +53,7 @@ export default function Prefs({ open: isOpen, onClose, onWorkshopChange, onSound
 
   async function setSpellcheckLanguage(language: SpellcheckLanguage) {
     await toggle('spellcheckLanguage', language)
+    window.dispatchEvent(new CustomEvent<SpellcheckLanguage>(SPELLCHECK_LANGUAGE_EVENT, { detail: language }))
     onSpellcheckLanguageChange?.(language)
   }
 
