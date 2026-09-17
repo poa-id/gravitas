@@ -54,10 +54,7 @@
 }
 
 .gv-prefs-close:hover { color: var(--text); }
-
-.gv-prefs-body {
-  padding: 8px 0;
-}
+.gv-prefs-body { padding: 8px 0; }
 
 .gv-prefs-row {
   display: flex;
@@ -80,11 +77,7 @@
   flex-shrink: 0;
 }
 
-.gv-prefs-options {
-  display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
-}
+.gv-prefs-options { display: flex; gap: 20px; flex-wrap: wrap; }
 
 .gv-prefs-option {
   font-family: var(--font-ui);
@@ -96,11 +89,7 @@
 }
 
 .gv-prefs-option:hover { color: var(--text); }
-
-.gv-prefs-option.active {
-  color: var(--text);
-  font-weight: 500;
-}
+.gv-prefs-option.active { color: var(--text); font-weight: 500; }
 
 .gv-prefs-close:focus-visible,
 .gv-prefs-option:focus-visible,
@@ -110,11 +99,7 @@
   border-radius: 1px;
 }
 
-.gv-prefs-divider {
-  height: 1px;
-  background: var(--border);
-  margin: 8px 24px;
-}
+.gv-prefs-divider { height: 1px; background: var(--border); margin: 8px 24px; }
 
 .gv-prefs-path {
   font-family: var(--font-mono);
@@ -135,14 +120,19 @@
 .gv-prefs-action:hover { color: var(--text); }
 
 .gv-prefs-footer {
-  padding: 12px 24px;
+  padding: 12px 24px 14px;
   border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.gv-prefs-version {
+.gv-prefs-maker,
+.gv-prefs-copyright {
   font-family: var(--font-ui);
-  font-size: 10px;
-  letter-spacing: 0.08em;
   color: var(--text-dimmer);
-  text-transform: uppercase;
 }
+
+.gv-prefs-maker { font-size: 10px; letter-spacing: 0.03em; }
+.gv-prefs-maker strong { color: var(--text-dim); font-weight: 500; }
+.gv-prefs-copyright { font-size: 9px; }
