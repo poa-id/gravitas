@@ -29,6 +29,7 @@
     "@tauri-apps/plugin-store": "^2.4.3",
     "dictionary-en": "^4.0.0",
     "dictionary-es-ar": "^2.0.0",
+    "harper.js": "^2.4.0",
     "nspell": "^2.1.5",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
