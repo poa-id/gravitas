@@ -1,6 +1,7 @@
 import { load } from '@tauri-apps/plugin-store'
 
 export type InterfaceSize = 'small' | 'regular' | 'large'
+export type SpellcheckLanguage = 'off' | 'en' | 'es-AR'
 
 export interface GravitasPreferences {
   onOpen: 'resume' | 'folio'
@@ -11,6 +12,7 @@ export interface GravitasPreferences {
   pasteIntentEnabled: boolean
   seenScratchToast: boolean
   interfaceSize: InterfaceSize
+  spellcheckLanguage: SpellcheckLanguage
 }
 
 const DEFAULT_PREFERENCES: GravitasPreferences = {
@@ -22,6 +24,7 @@ const DEFAULT_PREFERENCES: GravitasPreferences = {
   pasteIntentEnabled: true,
   seenScratchToast: false,
   interfaceSize: 'regular',
+  spellcheckLanguage: 'en',
 }
 
 async function getStore() {
@@ -42,6 +45,7 @@ export async function getPreferences(): Promise<GravitasPreferences> {
     pasteIntentEnabled: await store.get<boolean>('pasteIntentEnabled') ?? true,
     seenScratchToast: await store.get<boolean>('seenScratchToast') ?? false,
     interfaceSize: await store.get<InterfaceSize>('interfaceSize') ?? DEFAULT_PREFERENCES.interfaceSize,
+    spellcheckLanguage: await store.get<SpellcheckLanguage>('spellcheckLanguage') ?? DEFAULT_PREFERENCES.spellcheckLanguage,
   }
 }
 
