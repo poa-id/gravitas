@@ -4,10 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:web": "vite --mode web",
-    "build": "tsc && vite build",
-    "build:web": "tsc && vite build --mode web",
+    "spell:assets": "node scripts/copy-spell-dictionaries.mjs",
+    "dev": "npm run spell:assets && vite",
+    "dev:web": "npm run spell:assets && vite --mode web",
+    "build": "npm run spell:assets && tsc && vite build",
+    "build:web": "npm run spell:assets && tsc && vite build --mode web",
     "preview": "vite preview",
     "tauri": "tauri"
   },
@@ -26,6 +27,9 @@
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-opener": "^2.5.4",
     "@tauri-apps/plugin-store": "^2.4.3",
+    "dictionary-en": "^4.0.0",
+    "dictionary-es-ar": "^2.0.0",
+    "nspell": "^2.1.5",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
