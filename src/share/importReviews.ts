@@ -19,6 +19,7 @@ export async function importSharedReviews(workshopPath: string, session: LocalSh
   for (const submission of remote.submissions) {
     if (session.importedSubmissionIds.includes(submission.id)) continue
 
+    let firstImportedMark = true
     for (const mark of submission.marks) {
       const localId = `shared:${submission.id}:${mark.id}`
       if (existingIds.has(localId)) continue
@@ -28,9 +29,11 @@ export async function importSharedReviews(workshopPath: string, session: LocalSh
         status: 'open',
         resolvedAt: undefined,
         reviewerName: submission.reviewerName,
+        reviewerNote: firstImportedMark ? submission.reviewerNote : undefined,
         reviewSessionId: session.id,
         reviewSubmissionId: submission.id,
       })
+      firstImportedMark = false
       existingIds.add(localId)
       importedMarks++
     }
