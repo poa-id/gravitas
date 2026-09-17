@@ -13,6 +13,9 @@ export interface ReviewMark {
   status: ReviewStatus
   createdAt: string
   resolvedAt?: string
+  reviewerName?: string
+  reviewSessionId?: string
+  reviewSubmissionId?: string
 }
 
 function parts(path: string) {
