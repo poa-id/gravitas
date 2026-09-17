@@ -19,9 +19,7 @@ async function sha256(value) {
   return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
-function expired(row) {
-  return Date.parse(row.expires_at) <= Date.now()
-}
+function expired(row) { return Date.parse(row.expires_at) <= Date.now() }
 
 async function readJson(request) {
   const type = request.headers.get('content-type') || ''
@@ -32,7 +30,8 @@ async function readJson(request) {
 function cors(request, env) {
   const origin = request.headers.get('origin')
   const allowed = (env.ALLOWED_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean)
-  if (!origin || allowed.includes(origin) || origin === 'tauri://localhost' || origin === 'http://tauri.localhost') {
+  const selfOrigin = env.PUBLIC_REVIEW_BASE_URL ? new URL(env.PUBLIC_REVIEW_BASE_URL).origin : ''
+  if (!origin || allowed.includes(origin) || origin === selfOrigin || origin === 'tauri://localhost' || origin === 'http://tauri.localhost') {
     return origin ? { 'access-control-allow-origin': origin, vary: 'Origin' } : {}
   }
   return null
@@ -52,101 +51,54 @@ async function createReview(request, env) {
   const markdown = typeof body.markdown === 'string' ? body.markdown : ''
   if (!title || !markdown) return json({ error: 'title and markdown are required' }, 400)
   if (textEncoder.encode(markdown).byteLength > MAX_SNAPSHOT_BYTES) return json({ error: 'snapshot too large' }, 413)
-
-  const id = crypto.randomUUID()
-  const publicToken = randomToken()
-  const ownerKey = randomToken(32)
-  const publicTokenHash = await sha256(publicToken)
-  const ownerKeyHash = await sha256(ownerKey)
-  const snapshotSha256 = await sha256(markdown)
-  const createdAt = new Date().toISOString()
-  const expiresAt = new Date(Date.now() + WEEK_MS).toISOString()
-  const snapshotKey = `reviews/${id}.md`
-
-  await env.SNAPSHOTS.put(snapshotKey, markdown, {
-    httpMetadata: { contentType: 'text/markdown; charset=utf-8' },
-    customMetadata: { expiresAt, snapshotSha256 },
-  })
+  const id = crypto.randomUUID(), publicToken = randomToken(), ownerKey = randomToken(32)
+  const publicTokenHash = await sha256(publicToken), ownerKeyHash = await sha256(ownerKey), snapshotSha256 = await sha256(markdown)
+  const createdAt = new Date().toISOString(), expiresAt = new Date(Date.now() + WEEK_MS).toISOString(), snapshotKey = `reviews/${id}.md`
+  await env.SNAPSHOTS.put(snapshotKey, markdown, { httpMetadata: { contentType: 'text/markdown; charset=utf-8' }, customMetadata: { expiresAt, snapshotSha256 } })
   try {
-    await env.DB.prepare(`INSERT INTO review_sessions
-      (id, public_token_hash, owner_key_hash, title, snapshot_key, snapshot_sha256, created_at, expires_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+    await env.DB.prepare(`INSERT INTO review_sessions (id, public_token_hash, owner_key_hash, title, snapshot_key, snapshot_sha256, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(id, publicTokenHash, ownerKeyHash, title, snapshotKey, snapshotSha256, createdAt, expiresAt).run()
-  } catch (error) {
-    await env.SNAPSHOTS.delete(snapshotKey)
-    throw error
-  }
-
+  } catch (error) { await env.SNAPSHOTS.delete(snapshotKey); throw error }
   const base = (env.PUBLIC_REVIEW_BASE_URL || new URL(request.url).origin).replace(/\/$/, '')
-  return json({
-    id,
-    url: `${base}/r/${publicToken}`,
-    ownerKey,
-    createdAt,
-    expiresAt,
-    snapshotSha256,
-  }, 201)
+  return json({ id, url: `${base}/r/${publicToken}`, ownerKey, createdAt, expiresAt, snapshotSha256 }, 201)
 }
 
 async function sessionForPublicToken(env, token) {
-  const tokenHash = await sha256(token)
-  return env.DB.prepare('SELECT * FROM review_sessions WHERE public_token_hash = ?').bind(tokenHash).first()
+  return env.DB.prepare('SELECT * FROM review_sessions WHERE public_token_hash = ?').bind(await sha256(token)).first()
 }
 
 async function getPublicReview(env, token) {
   const row = await sessionForPublicToken(env, token)
   if (!row) return json({ error: 'review not found' }, 404)
-  if (expired(row)) {
-    await purgeSession(env, row)
-    return json({ error: 'review expired' }, 410)
-  }
+  if (expired(row)) { await purgeSession(env, row); return json({ error: 'review expired' }, 410) }
   const object = await env.SNAPSHOTS.get(row.snapshot_key)
   if (!object) return json({ error: 'review snapshot unavailable' }, 410)
-  return json({
-    title: row.title,
-    markdown: await object.text(),
-    createdAt: row.created_at,
-    expiresAt: row.expires_at,
-    snapshotSha256: row.snapshot_sha256,
-  })
+  return json({ title: row.title, markdown: await object.text(), createdAt: row.created_at, expiresAt: row.expires_at, snapshotSha256: row.snapshot_sha256 })
 }
 
 function validMark(mark) {
   return mark && ['comment', 'revisit', 'question', 'cut'].includes(mark.kind)
     && typeof mark.selectedText === 'string' && mark.selectedText.trim().length > 0
-    && typeof mark.contextBefore === 'string' && typeof mark.contextAfter === 'string'
-    && typeof mark.comment === 'string'
+    && typeof mark.contextBefore === 'string' && typeof mark.contextAfter === 'string' && typeof mark.comment === 'string'
 }
 
 async function submitReview(request, env, token) {
   const row = await sessionForPublicToken(env, token)
   if (!row) return json({ error: 'review not found' }, 404)
-  if (expired(row)) {
-    await purgeSession(env, row)
-    return json({ error: 'review expired' }, 410)
-  }
+  if (expired(row)) { await purgeSession(env, row); return json({ error: 'review expired' }, 410) }
   const body = await readJson(request)
   const reviewerName = typeof body.reviewerName === 'string' ? body.reviewerName.trim().slice(0, 120) : ''
   const reviewerNote = typeof body.reviewerNote === 'string' ? body.reviewerNote.trim().slice(0, 2000) : ''
   const marks = Array.isArray(body.marks) ? body.marks : []
   if (!reviewerName) return json({ error: 'reviewerName is required' }, 400)
   if (marks.length > MAX_MARKS || !marks.every(validMark)) return json({ error: 'invalid review marks' }, 400)
-
   const cleanMarks = marks.map(mark => ({
-    id: typeof mark.id === 'string' ? mark.id : crypto.randomUUID(),
-    kind: mark.kind,
-    selectedText: mark.selectedText.slice(0, 10000),
-    contextBefore: mark.contextBefore.slice(-128),
-    contextAfter: mark.contextAfter.slice(0, 128),
-    comment: mark.comment.slice(0, 4000),
-    status: 'open',
-    createdAt: typeof mark.createdAt === 'string' ? mark.createdAt : new Date().toISOString(),
+    id: typeof mark.id === 'string' ? mark.id : crypto.randomUUID(), kind: mark.kind,
+    selectedText: mark.selectedText.slice(0, 10000), contextBefore: mark.contextBefore.slice(-128), contextAfter: mark.contextAfter.slice(0, 128),
+    comment: mark.comment.slice(0, 4000), status: 'open', createdAt: typeof mark.createdAt === 'string' ? mark.createdAt : new Date().toISOString(),
   }))
-  const submissionId = crypto.randomUUID()
-  const now = new Date().toISOString()
-  await env.DB.prepare(`INSERT INTO review_submissions
-    (id, session_id, reviewer_name, reviewer_note, marks_json, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)`)
+  const submissionId = crypto.randomUUID(), now = new Date().toISOString()
+  await env.DB.prepare(`INSERT INTO review_submissions (id, session_id, reviewer_name, reviewer_note, marks_json, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
     .bind(submissionId, row.id, reviewerName, reviewerNote, JSON.stringify(cleanMarks), now).run()
   return json({ id: submissionId, receivedAt: now }, 201)
 }
@@ -154,33 +106,16 @@ async function submitReview(request, env, token) {
 async function ownerSession(request, env, id) {
   const ownerKey = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || ''
   if (!ownerKey) return null
-  const ownerKeyHash = await sha256(ownerKey)
-  return env.DB.prepare('SELECT * FROM review_sessions WHERE id = ? AND owner_key_hash = ?').bind(id, ownerKeyHash).first()
+  return env.DB.prepare('SELECT * FROM review_sessions WHERE id = ? AND owner_key_hash = ?').bind(id, await sha256(ownerKey)).first()
 }
 
 async function getResults(request, env, id) {
   const row = await ownerSession(request, env, id)
   if (!row) return json({ error: 'review not found' }, 404)
-  if (expired(row)) {
-    await purgeSession(env, row)
-    return json({ error: 'review expired' }, 410)
-  }
-  const result = await env.DB.prepare(`SELECT id, reviewer_name, reviewer_note, marks_json, created_at
-    FROM review_submissions WHERE session_id = ? ORDER BY created_at ASC`).bind(id).all()
-  return json({
-    id: row.id,
-    title: row.title,
-    createdAt: row.created_at,
-    expiresAt: row.expires_at,
-    snapshotSha256: row.snapshot_sha256,
-    submissions: (result.results || []).map(item => ({
-      id: item.id,
-      reviewerName: item.reviewer_name,
-      reviewerNote: item.reviewer_note,
-      marks: JSON.parse(item.marks_json),
-      createdAt: item.created_at,
-    })),
-  })
+  if (expired(row)) { await purgeSession(env, row); return json({ error: 'review expired' }, 410) }
+  const result = await env.DB.prepare(`SELECT id, reviewer_name, reviewer_note, marks_json, created_at FROM review_submissions WHERE session_id = ? ORDER BY created_at ASC`).bind(id).all()
+  return json({ id: row.id, title: row.title, createdAt: row.created_at, expiresAt: row.expires_at, snapshotSha256: row.snapshot_sha256,
+    submissions: (result.results || []).map(item => ({ id: item.id, reviewerName: item.reviewer_name, reviewerNote: item.reviewer_note, marks: JSON.parse(item.marks_json), createdAt: item.created_at })) })
 }
 
 async function revokeReview(request, env, id) {
@@ -190,25 +125,33 @@ async function revokeReview(request, env, id) {
   return new Response(null, { status: 204 })
 }
 
-function escapeHtml(value) {
-  return value.replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch])
-}
+function escapeHtml(value) { return value.replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]) }
 
 function reviewerHtml(token) {
   const safeToken = escapeHtml(token)
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Review in Gravitas</title><style>
-:root{--bg:#EDEDEA;--surface:#E4DDD2;--border:#D4CEC4;--text:#1C1814;--dim:#6B6560;--dimmer:#A09890;--accent:#7A6A4A;--warn:#8B5A3A;font-family:Georgia,serif}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text)}main{max-width:680px;margin:0 auto;padding:72px 40px 120px}.meta,.hint,.expires{font:12px ui-monospace,monospace;color:var(--dim);letter-spacing:.02em}.brand{position:fixed;top:22px;left:28px;font:600 13px ui-monospace,monospace}.expires{position:fixed;top:22px;right:28px}.title{font-size:30px;margin:24px 0 42px}.manuscript{font-size:18px;line-height:1.78;white-space:pre-wrap;user-select:text}.toolbar{position:fixed;display:none;z-index:5;background:var(--text);color:var(--bg);padding:6px;border-radius:5px;gap:4px}.toolbar button{border:0;background:transparent;color:inherit;padding:7px 9px;font:11px ui-monospace,monospace;cursor:pointer}.toolbar button:hover{background:#ffffff18}.marks{margin-top:54px;border-top:1px solid var(--border);padding-top:24px}.mark{font:13px ui-monospace,monospace;margin:12px 0;padding:12px;background:#ffffff35}.finish{margin-top:42px;border-top:1px solid var(--border);padding-top:24px}.finish input,.finish textarea{width:100%;border:1px solid var(--border);background:#ffffff40;padding:10px;margin:6px 0 12px;font:14px ui-monospace,monospace}.finish button{border:1px solid var(--text);background:var(--text);color:var(--bg);padding:10px 16px;font:12px ui-monospace,monospace;cursor:pointer}.done{padding:80px 0;text-align:center;color:var(--dim)}@media(max-width:640px){main{padding:70px 22px 100px}.expires{top:44px;left:28px;right:auto}.toolbar{max-width:calc(100vw - 24px);overflow:auto}}
-</style></head><body><div class="brand">Gravitas · Review copy</div><div class="expires" id="expires"></div><main id="app"><div class="hint">Loading review…</div></main><div class="toolbar" id="toolbar"><button data-kind="comment">Comment</button><button data-kind="revisit">Revisit</button><button data-kind="question">Question</button><button data-kind="cut">Cut?</button></div><script>
-const token=${JSON.stringify(safeToken)};const marks=[];let selected=null;const app=document.getElementById('app');const toolbar=document.getElementById('toolbar');
-const esc=s=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function renderMarks(){const el=document.getElementById('marks');if(!el)return;el.innerHTML=marks.map((m,i)=>'<div class="mark"><strong>'+esc(m.kind)+'</strong> · “'+esc(m.selectedText.slice(0,120))+'”'+(m.comment?'<br>'+esc(m.comment):'')+' <button data-remove="'+i+'">×</button></div>').join('');el.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{marks.splice(Number(b.dataset.remove),1);renderMarks()})}
-function captureSelection(){const sel=getSelection();if(!sel||sel.isCollapsed)return null;const manuscript=document.getElementById('manuscript');if(!manuscript||!manuscript.contains(sel.anchorNode)||!manuscript.contains(sel.focusNode))return null;const text=sel.toString().trim();if(!text)return null;const full=manuscript.textContent;const at=full.indexOf(text);return{text,contextBefore:at>=0?full.slice(Math.max(0,at-64),at):'',contextAfter:at>=0?full.slice(at+text.length,at+text.length+64):''}}
-document.addEventListener('selectionchange',()=>{const data=captureSelection();if(!data){toolbar.style.display='none';return}selected=data;const sel=getSelection();const r=sel.getRangeAt(0).getBoundingClientRect();toolbar.style.display='flex';toolbar.style.left=Math.max(12,Math.min(innerWidth-toolbar.offsetWidth-12,r.left+r.width/2-toolbar.offsetWidth/2))+'px';toolbar.style.top=Math.max(12,r.top-48)+'px'});
-toolbar.onclick=e=>{const kind=e.target.dataset.kind;if(!kind||!selected)return;let comment='';if(kind==='comment'||kind==='question')comment=prompt(kind==='question'?'What should the author consider?':'Leave a comment')||'';marks.push({id:crypto.randomUUID(),kind,selectedText:selected.text,contextBefore:selected.contextBefore,contextAfter:selected.contextAfter,comment,status:'open',createdAt:new Date().toISOString()});getSelection().removeAllRanges();toolbar.style.display='none';renderMarks()};
-async function load(){const res=await fetch('/api/reviews/'+encodeURIComponent(token));if(!res.ok){app.innerHTML='<div class="done">This review copy is no longer available.</div>';return}const data=await res.json();document.title=data.title+' · Gravitas Review';document.getElementById('expires').textContent='Expires '+new Date(data.expiresAt).toLocaleDateString();app.innerHTML='<div class="hint">Select any passage to leave a review mark.</div><h1 class="title">'+esc(data.title)+'</h1><article class="manuscript" id="manuscript">'+esc(data.markdown)+'</article><section class="marks"><div class="meta">YOUR MARKS</div><div id="marks"></div></section><section class="finish"><div class="meta">FINISH REVIEW</div><input id="name" maxlength="120" placeholder="Your name"><textarea id="note" maxlength="2000" rows="3" placeholder="Optional note to the author"></textarea><button id="send">Send review</button></section>';document.getElementById('send').onclick=send;renderMarks()}
-async function send(){const reviewerName=document.getElementById('name').value.trim();if(!reviewerName){document.getElementById('name').focus();return}const button=document.getElementById('send');button.disabled=true;const res=await fetch('/api/reviews/'+encodeURIComponent(token)+'/submissions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({reviewerName,reviewerNote:document.getElementById('note').value,marks})});if(res.ok)app.innerHTML='<div class="done"><strong>Review sent.</strong><br><br>The author will receive your marks in Gravitas.</div>';else button.disabled=false}
+:root{--bg:#EDEDEA;--bg-subtle:#EBE5DB;--surface:#E4DDD2;--border:#D4CEC4;--text:#1C1814;--dim:#6B6560;--dimmer:#A09890;--accent:#7A6A4A;--accent-soft:#C4B89A;--link:#4A6A4A;--warn:#8B5A3A;--prose:Lora,Georgia,'Times New Roman',serif;--ui:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace}*{box-sizing:border-box}html{background:var(--bg)}body{margin:0;background:var(--bg);color:var(--text);min-height:100vh}body:before{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;opacity:.032;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.7'/%3E%3C/svg%3E")}.chrome{position:fixed;top:0;left:0;right:0;height:38px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;z-index:20;font:10px var(--ui);letter-spacing:.06em;color:var(--dimmer);background:linear-gradient(var(--bg),rgba(237,237,234,.92),transparent)}.brand{color:var(--dim);text-transform:uppercase;letter-spacing:.1em}.review-copy{color:var(--accent)}main{width:600px;max-width:calc(100% - 48px);margin:0 auto;padding:78px 0 120px}.hint{font:10px var(--ui);letter-spacing:.04em;color:var(--dimmer);margin-bottom:28px}.title{font:500 26px/1.3 var(--prose);letter-spacing:-.015em;margin:0 0 38px}.manuscript{font:18px/1.8 var(--prose);position:relative;user-select:text}.manuscript p{margin:0 0 .9em}.manuscript h1,.manuscript h2,.manuscript h3{font-family:var(--prose);font-weight:600;line-height:1.35;margin:1.35em 0 .5em}.manuscript h1{font-size:1.45em}.manuscript h2{font-size:1.25em}.manuscript h3{font-size:1.1em}.manuscript blockquote{margin:1.15em 0;padding-left:1em;border-left:1px solid var(--accent-soft);color:var(--dim)}.manuscript hr{border:0;border-top:1px solid var(--border);margin:1.8em 0}.manuscript code,.manuscript pre{font-family:var(--ui)}.manuscript code{font-size:.86em}.manuscript pre{white-space:pre-wrap;font-size:.82em;line-height:1.55}.manuscript ::selection,.manuscript::selection{background:rgba(122,106,74,.14)}.toolbar{position:fixed;display:none;z-index:50;transform:translate(-50%,-100%);align-items:center;gap:2px;padding:4px;border:1px solid var(--border);background:var(--bg);box-shadow:0 6px 24px rgba(28,24,20,.09);font-family:var(--ui)}.toolbar button{appearance:none;border:0;background:none;color:var(--dim);font:10px var(--ui);padding:6px 7px;cursor:pointer;white-space:nowrap}.toolbar button:hover,.toolbar button:focus-visible{background:var(--surface);color:var(--text);outline:0}.toolbar kbd{font:9px var(--ui);color:var(--dimmer);margin-right:3px}.toolbar input{width:260px;border:0;outline:0;background:transparent;color:var(--text);font:13px var(--prose);padding:6px 8px}.review-mark{background:linear-gradient(transparent calc(100% - 2px),rgba(122,106,74,.42) 0);padding-bottom:1px}.finish{margin-top:72px;padding-top:20px;border-top:1px solid var(--border)}.finish-trigger{appearance:none;border:0;background:none;padding:5px 0;color:var(--accent);font:10px var(--ui);letter-spacing:.06em;text-transform:uppercase;cursor:pointer}.finish-copy{font:12px/1.55 var(--prose);color:var(--dimmer);margin:7px 0 0}.finish-form{display:none;margin-top:22px}.finish-form.open{display:block}.finish label{display:block;font:9px var(--ui);letter-spacing:.08em;text-transform:uppercase;color:var(--dimmer);margin:14px 0 6px}.finish input,.finish textarea{width:100%;border:0;border-bottom:1px solid var(--border);outline:0;background:transparent;color:var(--text);padding:8px 0;font:14px var(--prose);resize:vertical}.finish input:focus,.finish textarea:focus{border-color:var(--accent-soft)}.send{margin-top:20px;appearance:none;border:0;background:var(--text);color:var(--bg);padding:9px 14px;font:10px var(--ui);letter-spacing:.03em;cursor:pointer}.send:disabled{opacity:.45}.error{font:11px var(--ui);color:var(--warn);margin-top:12px}.done{padding:25vh 0;text-align:center;font:16px/1.7 var(--prose);color:var(--dim)}.done strong{font-weight:500;color:var(--text)}@media(max-width:640px){.chrome{padding:0 16px}.chrome .expiry-prefix{display:none}main{max-width:calc(100% - 36px);padding-top:68px}.toolbar{max-width:calc(100vw - 20px);overflow:auto}.toolbar input{width:210px}}
+</style></head><body><div class="chrome"><span class="brand">Gravitas <span class="review-copy">· review copy</span></span><span id="expires"><span class="expiry-prefix">Available until </span>…</span></div><main id="app"><div class="hint">Loading review…</div></main><div class="toolbar" id="toolbar"></div><script>
+const token=${JSON.stringify(safeToken)};const marks=[];const markRanges=[];let selected=null,composing=null;const app=document.getElementById('app'),toolbar=document.getElementById('toolbar');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function inline(s){return esc(s).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/\*([^*]+)\*/g,'<em>$1</em>').replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\[([^\]]+)\]\([^\s)]+\)/g,'$1').replace(/\[\[([^\]]+)\]\]/g,'$1')}
+function renderMarkdown(md){const lines=md.replace(/\r/g,'').split('\n'),out=[];let para=[],quote=[];const flush=()=>{if(para.length){out.push('<p>'+inline(para.join(' '))+'</p>');para=[]}if(quote.length){out.push('<blockquote>'+inline(quote.join(' '))+'</blockquote>');quote=[]}};for(const line of lines){const h=line.match(/^(#{1,3})\s+(.+)$/);if(h){flush();out.push('<h'+h[1].length+'>'+inline(h[2])+'</h'+h[1].length+'>');continue}if(/^\s*---+\s*$/.test(line)){flush();out.push('<hr>');continue}if(/^>\s?/.test(line)){if(para.length)flush();quote.push(line.replace(/^>\s?/,''));continue}if(!line.trim()){flush();continue}if(quote.length)flush();para.push(line.trim())}flush();return out.join('')}
+function textOffset(root,node,offset){const range=document.createRange();range.setStart(root,0);range.setEnd(node,offset);return range.toString().length}
+function captureSelection(){const sel=getSelection(),root=document.getElementById('manuscript');if(!sel||sel.isCollapsed||!sel.rangeCount||!root||!root.contains(sel.anchorNode)||!root.contains(sel.focusNode))return null;const range=sel.getRangeAt(0).cloneRange(),text=range.toString().trim();if(!text)return null;const full=root.textContent||'',start=textOffset(root,range.startContainer,range.startOffset),end=textOffset(root,range.endContainer,range.endOffset);return{text,contextBefore:full.slice(Math.max(0,start-64),start),contextAfter:full.slice(end,end+64),range}}
+function showActions(){if(!selected)return;toolbar.innerHTML='<button data-kind="comment"><kbd>C</kbd> Comment</button><button data-kind="revisit"><kbd>R</kbd> Revisit</button><button data-kind="question"><kbd>?</kbd> Question</button><button data-kind="cut"><kbd>X</kbd> Cut?</button>';toolbar.style.display='flex';positionToolbar(selected.range)}
+function positionToolbar(range){const r=range.getBoundingClientRect();toolbar.style.left=Math.max(toolbar.offsetWidth/2+10,Math.min(innerWidth-toolbar.offsetWidth/2-10,r.left+r.width/2))+'px';toolbar.style.top=Math.max(48,r.top-8)+'px'}
+function hideToolbar(){toolbar.style.display='none';composing=null}
+function paintMarks(){if(!CSS.highlights||!window.Highlight)return;const ranges=markRanges.filter(Boolean);CSS.highlights.set('gravitas-review',new Highlight(...ranges))}
+function addMark(kind,comment=''){if(!selected)return;marks.push({id:crypto.randomUUID(),kind,selectedText:selected.text,contextBefore:selected.contextBefore,contextAfter:selected.contextAfter,comment,status:'open',createdAt:new Date().toISOString()});markRanges.push(selected.range.cloneRange());paintMarks();getSelection()?.removeAllRanges();selected=null;hideToolbar()}
+function beginComment(kind){if(!selected)return;composing=kind;toolbar.innerHTML='<input id="mark-comment" maxlength="4000" placeholder="'+(kind==='question'?'What should the author consider?':'Leave a comment')+'" aria-label="Review comment">';toolbar.style.display='flex';positionToolbar(selected.range);const input=document.getElementById('mark-comment');input.focus();input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();addMark(kind,input.value)}if(e.key==='Escape'){e.preventDefault();showActions()}}}
+function choose(kind){if(!selected)return;if(kind==='comment'||kind==='question')beginComment(kind);else addMark(kind)}
+toolbar.addEventListener('pointerdown',e=>e.stopPropagation());toolbar.addEventListener('click',e=>{const button=e.target.closest('[data-kind]');if(button)choose(button.dataset.kind)});
+document.addEventListener('selectionchange',()=>{if(composing)return;const data=captureSelection();if(!data){if(!toolbar.contains(document.activeElement))hideToolbar();return}selected=data;requestAnimationFrame(showActions)});
+document.addEventListener('keydown',e=>{if(composing||!selected||e.metaKey||e.ctrlKey||e.altKey)return;const k=e.key.toLowerCase();if(k==='c'){e.preventDefault();choose('comment')}else if(k==='r'){e.preventDefault();choose('revisit')}else if(e.key==='?'){e.preventDefault();choose('question')}else if(k==='x'){e.preventDefault();choose('cut')}else if(e.key==='Escape'){getSelection()?.removeAllRanges();selected=null;hideToolbar()}});
+async function load(){const res=await fetch('/api/reviews/'+encodeURIComponent(token));if(!res.ok){app.innerHTML='<div class="done">This review copy is no longer available.</div>';return}const data=await res.json();document.title=data.title+' · Gravitas Review';document.getElementById('expires').innerHTML='<span class="expiry-prefix">Available until </span>'+new Date(data.expiresAt).toLocaleDateString(undefined,{month:'short',day:'numeric'});app.innerHTML='<div class="hint">Select a passage to leave a mark · C comment · R revisit · ? question · X cut?</div><h1 class="title">'+esc(data.title)+'</h1><article class="manuscript" id="manuscript">'+renderMarkdown(data.markdown)+'</article><section class="finish"><button class="finish-trigger" id="finish-trigger">Finish review</button><p class="finish-copy" id="finish-copy">Your marks stay with this review copy until you send them.</p><div class="finish-form" id="finish-form"><label for="name">Your name</label><input id="name" maxlength="120" autocomplete="name"><label for="note">Note to the author · optional</label><textarea id="note" maxlength="2000" rows="3"></textarea><button class="send" id="send">Send review</button><div class="error" id="send-error" hidden></div></div></section>';document.getElementById('finish-trigger').onclick=()=>{document.getElementById('finish-form').classList.add('open');document.getElementById('finish-trigger').hidden=true;document.getElementById('finish-copy').hidden=true;document.getElementById('name').focus()};document.getElementById('send').onclick=send}
+async function send(){const name=document.getElementById('name'),button=document.getElementById('send'),error=document.getElementById('send-error'),reviewerName=name.value.trim();if(!reviewerName){name.focus();return}button.disabled=true;error.hidden=true;try{const res=await fetch('/api/reviews/'+encodeURIComponent(token)+'/submissions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({reviewerName,reviewerNote:document.getElementById('note').value,marks})});if(!res.ok)throw new Error('Could not send review');app.innerHTML='<div class="done"><strong>Review sent.</strong><br>Your marks are ready for the author in Gravitas.</div>';hideToolbar()}catch(e){button.disabled=false;error.textContent='Could not send the review. Please try again.';error.hidden=false}}
 load();
-</script></body></html>`
+</script><style>::highlight(gravitas-review){background:linear-gradient(transparent 82%,rgba(122,106,74,.42) 82%)}</style></body></html>`
 }
 
 async function route(request, env) {
@@ -220,7 +163,6 @@ async function route(request, env) {
   }
   const headers = cors(request, env)
   if (!headers) return json({ error: 'origin not allowed' }, 403)
-
   let match
   if (request.method === 'POST' && url.pathname === '/api/reviews') return withCors(await createReview(request, env), headers)
   if ((match = url.pathname.match(/^\/api\/reviews\/([^/]+)$/)) && request.method === 'GET') return withCors(await getPublicReview(env, decodeURIComponent(match[1])), headers)
@@ -239,12 +181,7 @@ function withCors(response, headers) {
 }
 
 export default {
-  fetch(request, env) {
-    return route(request, env).catch(error => {
-      console.error(error)
-      return json({ error: 'internal error' }, 500)
-    })
-  },
+  fetch(request, env) { return route(request, env).catch(error => { console.error(error); return json({ error: 'internal error' }, 500) }) },
   async scheduled(_controller, env) {
     const rows = await env.DB.prepare('SELECT * FROM review_sessions WHERE expires_at <= ? LIMIT 100').bind(new Date().toISOString()).all()
     for (const row of rows.results || []) await purgeSession(env, row)
