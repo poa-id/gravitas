@@ -1,6 +1,7 @@
 import { EditorView } from '@codemirror/view'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags as t } from '@lezer/highlight'
+import { spellcheckPlugin } from './plugins/spellcheck'
 
 const gravatisTheme = EditorView.theme({
   '&': {
@@ -29,6 +30,13 @@ const gravatisTheme = EditorView.theme({
   },
   '.cm-line': {
     padding: '0',
+  },
+  '.gv-spelling-error': {
+    textDecorationLine: 'underline',
+    textDecorationStyle: 'wavy',
+    textDecorationColor: 'var(--warn)',
+    textDecorationThickness: '1px',
+    textUnderlineOffset: '3px',
   },
   // Standard blockquote line
 
@@ -61,4 +69,4 @@ const gravatisHighlight = HighlightStyle.define([
   { tag: t.quote, color: 'var(--text-dim)' },
 ])
 
-export const gravitas = [gravatisTheme, syntaxHighlighting(gravatisHighlight)]
+export const gravitas = [gravatisTheme, syntaxHighlighting(gravatisHighlight), spellcheckPlugin]
