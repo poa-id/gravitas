@@ -1,5 +1,7 @@
 import { load } from '@tauri-apps/plugin-store'
 
+export type InterfaceSize = 'small' | 'regular' | 'large'
+
 export interface GravitasPreferences {
   onOpen: 'resume' | 'folio'
   lastWorkshopPath: string | null
@@ -8,6 +10,7 @@ export interface GravitasPreferences {
   soundEnabled: boolean
   pasteIntentEnabled: boolean
   seenScratchToast: boolean
+  interfaceSize: InterfaceSize
 }
 
 const DEFAULT_PREFERENCES: GravitasPreferences = {
@@ -18,6 +21,7 @@ const DEFAULT_PREFERENCES: GravitasPreferences = {
   soundEnabled: true,
   pasteIntentEnabled: true,
   seenScratchToast: false,
+  interfaceSize: 'small',
 }
 
 async function getStore() {
@@ -37,6 +41,7 @@ export async function getPreferences(): Promise<GravitasPreferences> {
     soundEnabled: await store.get<boolean>('soundEnabled') ?? true,
     pasteIntentEnabled: await store.get<boolean>('pasteIntentEnabled') ?? true,
     seenScratchToast: await store.get<boolean>('seenScratchToast') ?? false,
+    interfaceSize: await store.get<InterfaceSize>('interfaceSize') ?? DEFAULT_PREFERENCES.interfaceSize,
   }
 }
 
