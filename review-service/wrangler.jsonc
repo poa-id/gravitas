@@ -9,7 +9,7 @@
   },
   "vars": {
     "PUBLIC_REVIEW_BASE_URL": "https://gravitas-review.pjoa93.workers.dev",
-    "ALLOWED_ORIGINS": "https://gravitas-git-feature-share-for-review-poaids-projects.vercel.app"
+    "ALLOWED_ORIGINS": "https://gravitas-git-feature-share-for-review-poaids-projects.vercel.app,https://gravitas-review.pjoa93.workers.dev"
   },
   "d1_databases": [
     {
