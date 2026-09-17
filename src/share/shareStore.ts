@@ -62,9 +62,15 @@ export async function findShareSessionForNote(workshopPath: string, notePath: st
   }
 }
 
-export async function markSubmissionImported(workshopPath: string, session: LocalShareSession, submissionId: string): Promise<LocalShareSession> {
-  if (session.importedSubmissionIds.includes(submissionId)) return session
-  const next = { ...session, importedSubmissionIds: [...session.importedSubmissionIds, submissionId] }
+export async function markSubmissionsImported(workshopPath: string, session: LocalShareSession, submissionIds: string[]): Promise<LocalShareSession> {
+  if (!submissionIds.length) return session
+  const imported = new Set(session.importedSubmissionIds)
+  submissionIds.forEach(id => imported.add(id))
+  const next = { ...session, importedSubmissionIds: [...imported] }
   await saveShareSession(workshopPath, next)
   return next
+}
+
+export async function markSubmissionImported(workshopPath: string, session: LocalShareSession, submissionId: string): Promise<LocalShareSession> {
+  return markSubmissionsImported(workshopPath, session, [submissionId])
 }
