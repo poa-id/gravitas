@@ -5,9 +5,18 @@ import { getPreferences, type SpellcheckLanguage } from '../../workshop/preferen
 
 export const SPELLCHECK_LANGUAGE_EVENT = 'gravitas:spellcheck-language'
 
+interface GrammarIssue {
+  from: number
+  to: number
+  message: string
+  suggestions: string[]
+  ignoreKey: string
+}
+
 const refreshSpellcheck = StateEffect.define<null>()
 const dictionaryCache = new Map<Exclude<SpellcheckLanguage, 'off'>, Promise<NSpell>>()
 const misspelling = Decoration.mark({ class: 'gv-spelling-error' })
+const grammarMark = Decoration.mark({ class: 'gv-grammar-error' })
 const wordPattern = /[\p{L}][\p{L}\p{M}'’\-]*/gu
 
 function isAudit(view: EditorView) {
@@ -37,26 +46,37 @@ async function loadDictionary(language: Exclude<SpellcheckLanguage, 'off'>): Pro
   return pending
 }
 
-function buildDecorations(view: EditorView, spell: NSpell | null, language: SpellcheckLanguage): DecorationSet {
-  if (!spell || language === 'off' || !isAudit(view)) return Decoration.none
-
-  const builder = new RangeSetBuilder<Decoration>()
+function spellingRanges(view: EditorView, spell: NSpell, ignored: Set<string>) {
+  const ranges: { from: number; to: number; decoration: Decoration }[] = []
   for (const range of view.visibleRanges) {
     const text = view.state.sliceDoc(range.from, range.to)
     wordPattern.lastIndex = 0
     let match: RegExpExecArray | null
     while ((match = wordPattern.exec(text))) {
       const word = match[0]
-      if (word.length < 2 || /^\p{Lu}$/u.test(word) || /\d/.test(word)) continue
+      if (word.length < 2 || /^\p{Lu}$/u.test(word) || /\d/.test(word) || ignored.has(word.toLocaleLowerCase()) || spell.correct(word)) continue
       const before = text.slice(Math.max(0, match.index - 2), match.index)
       const after = text.slice(match.index + word.length, match.index + word.length + 2)
       if (before === '[[' || after === ']]') continue
-      if (!spell.correct(word)) {
-        const from = range.from + match.index
-        builder.add(from, from + word.length, misspelling)
-      }
+      const from = range.from + match.index
+      ranges.push({ from, to: from + word.length, decoration: misspelling })
     }
   }
+  return ranges
+}
+
+function buildDecorations(view: EditorView, spell: NSpell | null, language: SpellcheckLanguage, ignored: Set<string>, grammarIssues: GrammarIssue[]): DecorationSet {
+  if (language === 'off' || !isAudit(view)) return Decoration.none
+  const ranges = spell ? spellingRanges(view, spell, ignored) : []
+  if (language === 'en') {
+    for (const issue of grammarIssues) {
+      if (issue.to <= issue.from) continue
+      ranges.push({ from: issue.from, to: issue.to, decoration: grammarMark })
+    }
+  }
+  ranges.sort((a, b) => a.from - b.from || a.to - b.to)
+  const builder = new RangeSetBuilder<Decoration>()
+  for (const range of ranges) builder.add(range.from, range.to, range.decoration)
   return builder.finish()
 }
 
@@ -78,6 +98,11 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
   private spell: NSpell | null = null
   private disposed = false
   private ignored = new Set<string>()
+  private ignoredGrammar = new Set<string>()
+  private grammarIssues: GrammarIssue[] = []
+  private grammarLinter: any = null
+  private grammarTimer: ReturnType<typeof setTimeout> | null = null
+  private grammarRun = 0
   private menu: HTMLDivElement | null = null
   private modeObserver: MutationObserver
   private languageHandler: (event: Event) => void
@@ -91,7 +116,8 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
     this.modeObserver = new MutationObserver(() => {
       view.contentDOM.spellcheck = false
       if (!isAudit(this.view)) this.closeMenu()
-      this.view.dispatch({ effects: refreshSpellcheck.of(null) })
+      this.scheduleGrammar()
+      this.refresh()
     })
     if (editor) this.modeObserver.observe(editor, { attributes: true, attributeFilter: ['class'] })
 
@@ -102,9 +128,21 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
     window.addEventListener(SPELLCHECK_LANGUAGE_EVENT, this.languageHandler)
 
     this.pointerHandler = (event: PointerEvent) => {
-      if (!this.spell || this.language === 'off' || !isAudit(this.view)) return
+      if (this.language === 'off' || !isAudit(this.view)) return
       const pos = this.view.posAtCoords({ x: event.clientX, y: event.clientY })
       if (pos === null) return
+
+      if (this.language === 'en') {
+        const grammar = this.grammarIssues.find(issue => pos >= issue.from && pos <= issue.to)
+        if (grammar) {
+          event.preventDefault()
+          event.stopPropagation()
+          this.openGrammarMenu(grammar)
+          return
+        }
+      }
+
+      if (!this.spell) return
       const found = wordAt(this.view, pos)
       if (!found || this.spell.correct(found.word) || this.ignored.has(found.word.toLocaleLowerCase())) {
         this.closeMenu()
@@ -112,7 +150,7 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
       }
       event.preventDefault()
       event.stopPropagation()
-      this.openMenu(found.word, found.from, found.to)
+      this.openSpellingMenu(found.word, found.from, found.to)
     }
     view.contentDOM.addEventListener('pointerdown', this.pointerHandler)
 
@@ -142,6 +180,10 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
     void getPreferences().then(prefs => this.setLanguage(prefs.spellcheckLanguage))
   }
 
+  private refresh() {
+    this.view.dispatch({ effects: refreshSpellcheck.of(null) })
+  }
+
   private closeMenu() {
     this.menu?.remove()
     this.menu = null
@@ -153,52 +195,7 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
     this.view.focus()
   }
 
-  private openMenu(word: string, from: number, to: number) {
-    if (!this.spell) return
-    this.closeMenu()
-    const menu = document.createElement('div')
-    menu.className = 'gv-spell-menu'
-    menu.setAttribute('role', 'menu')
-    menu.setAttribute('aria-label', `Spelling suggestions for ${word}`)
-
-    const suggestions = this.spell.suggest(word).slice(0, 5)
-    if (suggestions.length) {
-      suggestions.forEach((suggestion, index) => {
-        const button = document.createElement('button')
-        button.type = 'button'
-        button.className = 'gv-spell-suggestion'
-        button.setAttribute('role', 'menuitem')
-        button.textContent = suggestion
-        button.addEventListener('pointerdown', event => event.stopPropagation())
-        button.addEventListener('click', () => this.replace(from, to, suggestion))
-        menu.appendChild(button)
-        if (index === 0) requestAnimationFrame(() => button.focus())
-      })
-    } else {
-      const empty = document.createElement('span')
-      empty.className = 'gv-spell-empty'
-      empty.textContent = 'No suggestions'
-      menu.appendChild(empty)
-    }
-
-    const divider = document.createElement('i')
-    divider.className = 'gv-spell-divider'
-    menu.appendChild(divider)
-
-    const ignore = document.createElement('button')
-    ignore.type = 'button'
-    ignore.className = 'gv-spell-ignore'
-    ignore.setAttribute('role', 'menuitem')
-    ignore.textContent = 'Ignore for now'
-    ignore.addEventListener('pointerdown', event => event.stopPropagation())
-    ignore.addEventListener('click', () => {
-      this.ignored.add(word.toLocaleLowerCase())
-      this.closeMenu()
-      this.view.dispatch({ effects: refreshSpellcheck.of(null) })
-      this.view.focus()
-    })
-    menu.appendChild(ignore)
-
+  private positionMenu(menu: HTMLDivElement, from: number, to: number) {
     document.body.appendChild(menu)
     this.menu = menu
     const start = this.view.coordsAtPos(from)
@@ -211,57 +208,183 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
     menu.style.top = `${top}px`
   }
 
+  private addSuggestionButtons(menu: HTMLDivElement, suggestions: string[], from: number, to: number) {
+    if (suggestions.length) {
+      suggestions.slice(0, 5).forEach((suggestion, index) => {
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.className = 'gv-spell-suggestion'
+        button.setAttribute('role', 'menuitem')
+        button.textContent = suggestion || 'Remove'
+        button.addEventListener('pointerdown', event => event.stopPropagation())
+        button.addEventListener('click', () => this.replace(from, to, suggestion))
+        menu.appendChild(button)
+        if (index === 0) requestAnimationFrame(() => button.focus())
+      })
+    } else {
+      const empty = document.createElement('span')
+      empty.className = 'gv-spell-empty'
+      empty.textContent = 'No suggestions'
+      menu.appendChild(empty)
+    }
+  }
+
+  private addDivider(menu: HTMLDivElement) {
+    const divider = document.createElement('i')
+    divider.className = 'gv-spell-divider'
+    menu.appendChild(divider)
+  }
+
+  private openSpellingMenu(word: string, from: number, to: number) {
+    if (!this.spell) return
+    this.closeMenu()
+    const menu = document.createElement('div')
+    menu.className = 'gv-spell-menu'
+    menu.setAttribute('role', 'menu')
+    menu.setAttribute('aria-label', `Spelling suggestions for ${word}`)
+    this.addSuggestionButtons(menu, this.spell.suggest(word), from, to)
+    this.addDivider(menu)
+
+    const ignore = document.createElement('button')
+    ignore.type = 'button'
+    ignore.className = 'gv-spell-ignore'
+    ignore.setAttribute('role', 'menuitem')
+    ignore.textContent = 'Ignore for now'
+    ignore.addEventListener('pointerdown', event => event.stopPropagation())
+    ignore.addEventListener('click', () => {
+      this.ignored.add(word.toLocaleLowerCase())
+      this.closeMenu()
+      this.refresh()
+      this.view.focus()
+    })
+    menu.appendChild(ignore)
+    this.positionMenu(menu, from, to)
+  }
+
+  private openGrammarMenu(issue: GrammarIssue) {
+    this.closeMenu()
+    const menu = document.createElement('div')
+    menu.className = 'gv-spell-menu gv-grammar-menu'
+    menu.setAttribute('role', 'menu')
+    menu.setAttribute('aria-label', 'Grammar suggestion')
+
+    const label = document.createElement('span')
+    label.className = 'gv-grammar-label'
+    label.textContent = 'Grammar'
+    menu.appendChild(label)
+    const message = document.createElement('span')
+    message.className = 'gv-grammar-message'
+    message.textContent = issue.message
+    menu.appendChild(message)
+
+    this.addDivider(menu)
+    this.addSuggestionButtons(menu, issue.suggestions, issue.from, issue.to)
+    this.addDivider(menu)
+
+    const ignore = document.createElement('button')
+    ignore.type = 'button'
+    ignore.className = 'gv-spell-ignore'
+    ignore.setAttribute('role', 'menuitem')
+    ignore.textContent = 'Ignore for now'
+    ignore.addEventListener('pointerdown', event => event.stopPropagation())
+    ignore.addEventListener('click', () => {
+      this.ignoredGrammar.add(issue.ignoreKey)
+      this.grammarIssues = this.grammarIssues.filter(item => item.ignoreKey !== issue.ignoreKey)
+      this.closeMenu()
+      this.refresh()
+      this.view.focus()
+    })
+    menu.appendChild(ignore)
+    this.positionMenu(menu, issue.from, issue.to)
+  }
+
+  private async ensureGrammarLinter() {
+    if (this.grammarLinter) return this.grammarLinter
+    const [{ WorkerLinter, Dialect }, { binary }] = await Promise.all([import('harper.js'), import('harper.js/binary')])
+    if (this.disposed) return null
+    const linter = new WorkerLinter({ binary, dialect: Dialect.American })
+    await linter.setup()
+    await linter.setLintConfig({ SpellCheck: false })
+    if (this.disposed) {
+      await linter.dispose()
+      return null
+    }
+    this.grammarLinter = linter
+    return linter
+  }
+
+  private scheduleGrammar() {
+    if (this.grammarTimer) clearTimeout(this.grammarTimer)
+    if (this.language !== 'en' || !isAudit(this.view)) {
+      this.grammarIssues = []
+      this.refresh()
+      return
+    }
+    this.grammarTimer = setTimeout(() => void this.runGrammar(), 220)
+  }
+
+  private async runGrammar() {
+    if (this.language !== 'en' || !isAudit(this.view) || this.disposed) return
+    const run = ++this.grammarRun
+    const source = this.view.state.doc.toString()
+    try {
+      const linter = await this.ensureGrammarLinter()
+      if (!linter || this.disposed || run !== this.grammarRun || this.language !== 'en' || !isAudit(this.view)) return
+      const lints = await linter.lint(source, { language: 'markdown' })
+      if (this.disposed || run !== this.grammarRun) return
+      this.grammarIssues = lints.map((lint: any) => {
+        const span = lint.span()
+        const message = lint.message()
+        const suggestions = Array.from(lint.suggestions() as Iterable<any>).map((suggestion: any) => suggestion.get_replacement_text())
+        const marked = source.slice(span.start, span.end)
+        return {
+          from: span.start,
+          to: span.end,
+          message,
+          suggestions,
+          ignoreKey: `${marked}\u0000${message}`,
+        } as GrammarIssue
+      }).filter((issue: GrammarIssue) => issue.from >= 0 && issue.to <= source.length && issue.to > issue.from && !this.ignoredGrammar.has(issue.ignoreKey))
+      this.refresh()
+    } catch (error) {
+      console.error('Failed to run Harper grammar check:', error)
+    }
+  }
+
   private async setLanguage(language: SpellcheckLanguage) {
     this.language = language
     this.spell = null
     this.ignored.clear()
+    this.ignoredGrammar.clear()
+    this.grammarIssues = []
     this.closeMenu()
     this.decorations = Decoration.none
-    this.view.dispatch({ effects: refreshSpellcheck.of(null) })
+    this.refresh()
     if (language === 'off') return
 
     try {
       const spell = await loadDictionary(language)
       if (this.disposed || this.language !== language) return
       this.spell = spell
-      this.view.dispatch({ effects: refreshSpellcheck.of(null) })
+      this.refresh()
+      this.scheduleGrammar()
     } catch (error) {
       console.error('Failed to load spellcheck dictionary:', error)
     }
   }
 
   update(update: ViewUpdate) {
+    if (update.docChanged) this.scheduleGrammar()
     if (update.docChanged || update.viewportChanged || update.transactions.some(transaction => transaction.effects.some(effect => effect.is(refreshSpellcheck)))) {
-      if (!this.spell || this.language === 'off' || !isAudit(update.view)) {
-        this.decorations = Decoration.none
-      } else {
-        const all = buildDecorations(update.view, this.spell, this.language)
-        if (!this.ignored.size) this.decorations = all
-        else {
-          const builder = new RangeSetBuilder<Decoration>()
-          for (const range of update.view.visibleRanges) {
-            const text = update.view.state.sliceDoc(range.from, range.to)
-            wordPattern.lastIndex = 0
-            let match: RegExpExecArray | null
-            while ((match = wordPattern.exec(text))) {
-              const word = match[0]
-              if (word.length < 2 || this.ignored.has(word.toLocaleLowerCase()) || this.spell.correct(word)) continue
-              const before = text.slice(Math.max(0, match.index - 2), match.index)
-              const after = text.slice(match.index + word.length, match.index + word.length + 2)
-              if (before === '[[' || after === ']]') continue
-              const from = range.from + match.index
-              builder.add(from, from + word.length, misspelling)
-            }
-          }
-          this.decorations = builder.finish()
-        }
-      }
+      this.decorations = buildDecorations(update.view, this.spell, this.language, this.ignored, this.grammarIssues)
       if (update.docChanged || update.viewportChanged) this.closeMenu()
     }
   }
 
   destroy() {
     this.disposed = true
+    if (this.grammarTimer) clearTimeout(this.grammarTimer)
+    if (this.grammarLinter) void this.grammarLinter.dispose()
     this.closeMenu()
     this.modeObserver.disconnect()
     this.view.contentDOM.removeEventListener('pointerdown', this.pointerHandler)
