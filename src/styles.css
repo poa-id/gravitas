@@ -32,7 +32,7 @@
   --prov-ref-border:    #B0A898;
   --prov-ref-bg:        rgba(176, 168, 152, 0.05);
 
-  /* Typothreadsy */
+  /* Typography */
   --font-prose:   'Lora', Georgia, serif;
   --font-mono:    'JetBrains Mono', 'Courier New', monospace;
   --font-ui:      'Lora', Georgia, serif;
@@ -41,6 +41,26 @@
   --col-width:    548px;
   --line-height:  1.78;
   --font-size:    18px;
+
+  /* Interface sizing. Small is the original Gravitas composition. */
+  --ui-xs: 9px;
+  --ui-sm: 10px;
+  --ui-md: 11px;
+  --ui-lg: 13px;
+}
+
+:root[data-ui-size='regular'] {
+  --ui-xs: 10px;
+  --ui-sm: 11px;
+  --ui-md: 12px;
+  --ui-lg: 14px;
+}
+
+:root[data-ui-size='large'] {
+  --ui-xs: 11px;
+  --ui-sm: 12px;
+  --ui-md: 14px;
+  --ui-lg: 16px;
 }
 
 html, body, #root {
@@ -67,7 +87,7 @@ body::before {
   pointer-events: none;
   z-index: 9999;
   opacity: 0.032;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitchTiles'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-size: 180px 180px;
 }
 
@@ -81,6 +101,81 @@ body::before {
 ::selection {
   background: rgba(122, 106, 74, 0.18);
   color: var(--text);
+}
+
+/* Keyboard focus stays quiet until it is needed. */
+button:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* UI type scale — manuscript typography deliberately remains 18px. */
+.gv-mode-tab,
+.gv-stat,
+.gv-export-pdf,
+.gv-shortcuts-btn,
+.gv-scratch-label,
+.gv-review-kind,
+.gv-nav-logo,
+.gv-nav-section-label,
+.gv-nav-shelf-name { font-size: var(--ui-sm) !important; }
+
+.gv-shortcuts,
+.gv-audit-count,
+.gv-audit-nav-buttons button,
+.gv-audit-actions button,
+.gv-audit-signals,
+.gv-review-popover kbd,
+.gv-audit-rail kbd,
+.gv-type-badge,
+.gv-question-mark,
+.gv-nav-signal { font-size: var(--ui-xs) !important; }
+
+.gv-meta,
+.gv-promote,
+.gv-entry-trash,
+.gv-scratch-divider-text,
+.gv-audit-empty span,
+.gv-nav-close,
+.gv-nav-scratch-hint,
+.gv-nav-date,
+.gv-nav-empty,
+.gv-prefs-title,
+.gv-prefs-close { font-size: var(--ui-md) !important; }
+
+.gv-review-popover input,
+.gv-audit-rail blockquote,
+.gv-audit-empty,
+.gv-nav,
+.gv-nav-search,
+.gv-nav-scratch-name,
+.gv-nav-filename,
+.gv-nav-rename-input,
+.gv-prefs-label,
+.gv-prefs-option { font-size: var(--ui-lg) !important; }
+
+.gv-review-popover button,
+.gv-audit-rail p,
+.gv-nav-new-shelf-input,
+.gv-prefs-action { font-size: max(var(--ui-md), 12px) !important; }
+
+/* Large UI also gives controls a little more physical room without changing prose. */
+:root[data-ui-size='large'] .gv-mode-tab,
+:root[data-ui-size='large'] .gv-review-popover button {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+:root[data-ui-size='large'] .gv-nav-file {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+:root[data-ui-size='large'] .gv-prefs-row {
+  padding-top: 14px;
+  padding-bottom: 14px;
 }
 
 /* ── One-time scratch toast ─────────────────────────────────────────── */
