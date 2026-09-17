@@ -1,4 +1,4 @@
-import { exists, mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { exists, mkdir, readDir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 
 export interface LocalShareSession {
   id: string
@@ -24,6 +24,11 @@ function sharePath(workshopPath: string, id: string) {
   return `${sharesFolder(workshopPath)}/${safeFileName(id)}.json`
 }
 
+function normalize(parsed: LocalShareSession): LocalShareSession | null {
+  if (!parsed?.id || !parsed.ownerKey || !parsed.notePath) return null
+  return { ...parsed, importedSubmissionIds: Array.isArray(parsed.importedSubmissionIds) ? parsed.importedSubmissionIds : [] }
+}
+
 export async function saveShareSession(workshopPath: string, session: LocalShareSession): Promise<void> {
   const folder = sharesFolder(workshopPath)
   if (!(await exists(folder))) await mkdir(folder, { recursive: true })
@@ -33,10 +38,25 @@ export async function saveShareSession(workshopPath: string, session: LocalShare
 export async function loadShareSession(workshopPath: string, id: string): Promise<LocalShareSession | null> {
   const path = sharePath(workshopPath, id)
   if (!(await exists(path))) return null
+  try { return normalize(JSON.parse(await readTextFile(path)) as LocalShareSession) }
+  catch { return null }
+}
+
+export async function findShareSessionForNote(workshopPath: string, notePath: string): Promise<LocalShareSession | null> {
+  const folder = sharesFolder(workshopPath)
+  if (!(await exists(folder))) return null
   try {
-    const parsed = JSON.parse(await readTextFile(path)) as LocalShareSession
-    if (!parsed?.id || !parsed.ownerKey || !parsed.notePath) return null
-    return { ...parsed, importedSubmissionIds: Array.isArray(parsed.importedSubmissionIds) ? parsed.importedSubmissionIds : [] }
+    const entries = await readDir(folder)
+    const sessions: LocalShareSession[] = []
+    for (const entry of entries) {
+      if (!entry.name?.endsWith('.json') || entry.isDirectory) continue
+      try {
+        const parsed = normalize(JSON.parse(await readTextFile(`${folder}/${entry.name}`)) as LocalShareSession)
+        if (parsed?.notePath === notePath) sessions.push(parsed)
+      } catch { /* malformed share files do not block the workshop */ }
+    }
+    sessions.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    return sessions[0] ?? null
   } catch {
     return null
   }
