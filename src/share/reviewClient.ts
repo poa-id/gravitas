@@ -1,6 +1,7 @@
 import type { ReviewMark } from '../review/reviewStore'
 
-const REVIEW_API_URL = (import.meta.env.VITE_REVIEW_API_URL as string | undefined)?.replace(/\/$/, '') || ''
+const DEFAULT_REVIEW_API_URL = 'https://gravitas-review.pjoa93.workers.dev'
+const REVIEW_API_URL = ((import.meta.env.VITE_REVIEW_API_URL as string | undefined) || DEFAULT_REVIEW_API_URL).replace(/\/$/, '')
 
 export interface CreatedReview {
   id: string
