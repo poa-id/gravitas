@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getPreferences, setPreference, type GravitasPreferences, type InterfaceSize } from '../workshop/preferences'
+import { getPreferences, setPreference, type GravitasPreferences, type InterfaceSize, type SpellcheckLanguage } from '../workshop/preferences'
 import { open } from '@tauri-apps/plugin-dialog'
 import './Prefs.css'
 
@@ -9,13 +9,14 @@ interface PrefsProps {
   onWorkshopChange: (path: string) => void
   onSoundChange: (enabled: boolean) => void
   onPasteIntentChange: (enabled: boolean) => void
+  onSpellcheckLanguageChange?: (language: SpellcheckLanguage) => void
 }
 
 function applyInterfaceSize(size: InterfaceSize) {
   document.documentElement.dataset.uiSize = size
 }
 
-export default function Prefs({ open: isOpen, onClose, onWorkshopChange, onSoundChange, onPasteIntentChange }: PrefsProps) {
+export default function Prefs({ open: isOpen, onClose, onWorkshopChange, onSoundChange, onPasteIntentChange, onSpellcheckLanguageChange }: PrefsProps) {
   const [prefs, setPrefs] = useState<GravitasPreferences | null>(null)
 
   useEffect(() => {
@@ -49,6 +50,11 @@ export default function Prefs({ open: isOpen, onClose, onWorkshopChange, onSound
     await toggle('interfaceSize', size)
   }
 
+  async function setSpellcheckLanguage(language: SpellcheckLanguage) {
+    await toggle('spellcheckLanguage', language)
+    onSpellcheckLanguageChange?.(language)
+  }
+
   if (!isOpen || !prefs) return null
 
   return (
@@ -67,6 +73,22 @@ export default function Prefs({ open: isOpen, onClose, onWorkshopChange, onSound
                 <button key={size} className={`gv-prefs-option ${prefs.interfaceSize === size ? 'active' : ''}`}
                   aria-pressed={prefs.interfaceSize === size} onClick={() => setInterfaceSize(size)}>
                   {size.charAt(0).toUpperCase() + size.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="gv-prefs-row">
+            <span className="gv-prefs-label">Spellcheck</span>
+            <div className="gv-prefs-options" aria-label="Spellcheck language">
+              {([
+                ['off', 'Off'],
+                ['en', 'English'],
+                ['es-AR', 'Español (Argentina)'],
+              ] as [SpellcheckLanguage, string][]).map(([language, label]) => (
+                <button key={language} className={`gv-prefs-option ${prefs.spellcheckLanguage === language ? 'active' : ''}`}
+                  aria-pressed={prefs.spellcheckLanguage === language} onClick={() => setSpellcheckLanguage(language)}>
+                  {label}
                 </button>
               ))}
             </div>
