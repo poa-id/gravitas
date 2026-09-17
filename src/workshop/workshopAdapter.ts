@@ -3,6 +3,7 @@ import { readDir, readTextFile, writeTextFile, mkdir, exists } from '@tauri-apps
 export interface NoteFile { name: string; path: string; shelf: string[]; modified?: number }
 export interface Shelf { name: string; path: string; notes: NoteFile[]; shelves: Shelf[] }
 export interface Workshop { path: string; name: string; scratch: NoteFile[]; folio: NoteFile[]; shelves: Shelf[]; allNotes: NoteFile[] }
+export interface WorkshopDictionary { words: string[] }
 
 export async function loadWorkshop(rootPath: string): Promise<Workshop> {
   const name = rootPath.split('/').pop() || 'Workshop'
@@ -86,6 +87,35 @@ export async function ensureScratch(workshopPath: string): Promise<NoteFile> {
   const path = `${workshopPath}/scratch.md`
   if (!await exists(path)) await writeTextFile(path, '')
   return { name: 'scratch', path, shelf: [] }
+}
+
+export async function loadWorkshopDictionary(workshopPath: string): Promise<WorkshopDictionary> {
+  const path = `${workshopPath}/.gravitas/dictionary.json`
+  if (!await exists(path)) return { words: [] }
+  try {
+    const parsed = JSON.parse(await readTextFile(path)) as Partial<WorkshopDictionary>
+    const words = Array.isArray(parsed.words)
+      ? parsed.words.filter((word): word is string => typeof word === 'string' && word.trim().length > 0)
+      : []
+    return { words }
+  } catch (error) {
+    console.error('Failed to read workshop dictionary:', error)
+    return { words: [] }
+  }
+}
+
+export async function addWordToWorkshopDictionary(workshopPath: string, word: string): Promise<WorkshopDictionary> {
+  const clean = word.trim()
+  const current = await loadWorkshopDictionary(workshopPath)
+  if (!clean) return current
+  const existsAlready = current.words.some(existing => existing.toLocaleLowerCase() === clean.toLocaleLowerCase())
+  if (existsAlready) return current
+
+  const next = { words: [...current.words, clean].sort((a, b) => a.localeCompare(b)) }
+  const folder = `${workshopPath}/.gravitas`
+  await ensureFolder(folder)
+  await writeTextFile(`${folder}/dictionary.json`, `${JSON.stringify(next, null, 2)}\n`)
+  return next
 }
 
 async function ensureFolder(path: string): Promise<void> { if (!await exists(path)) await mkdir(path, { recursive: true }) }
