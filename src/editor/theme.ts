@@ -38,6 +38,13 @@ const gravatisTheme = EditorView.theme({
     textDecorationThickness: '1px',
     textUnderlineOffset: '3px',
   },
+  '.gv-grammar-error': {
+    textDecorationLine: 'underline',
+    textDecorationStyle: 'dotted',
+    textDecorationColor: 'var(--accent)',
+    textDecorationThickness: '1px',
+    textUnderlineOffset: '3px',
+  },
   // Standard blockquote line
 
 '.cm-gravitas-quote': {
