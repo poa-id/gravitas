@@ -1,4 +1,4 @@
-name: Refresh npm lockfile
+name: Refresh review-service lockfile
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
       - feature/share-for-review
     paths:
       - .github/workflows/refresh-lockfile.yml
+      - review-service/package.json
   workflow_dispatch:
 
 permissions:
@@ -22,18 +23,21 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Regenerate lockfile
+          cache-dependency-path: review-service/package-lock.json
+      - name: Regenerate review-service lockfile
+        working-directory: review-service
         run: npm install --package-lock-only --ignore-scripts
       - name: Verify clean install
+        working-directory: review-service
         run: npm ci --ignore-scripts
       - name: Commit generated lockfile
         run: |
-          if git diff --quiet -- package-lock.json; then
-            echo "package-lock.json is already current"
+          if git diff --quiet -- review-service/package-lock.json; then
+            echo "review-service/package-lock.json is already current"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          git commit -m "chore: sync package lock"
+          git add review-service/package-lock.json
+          git commit -m "chore: sync review service package lock"
           git push origin HEAD:feature/share-for-review
