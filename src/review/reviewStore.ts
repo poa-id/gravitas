@@ -3,6 +3,15 @@ import { exists, mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-f
 export type ReviewKind = 'comment' | 'revisit' | 'question' | 'cut'
 export type ReviewStatus = 'open' | 'resolved'
 
+export interface ReviewDeliveryNote {
+  id: string
+  reviewerName: string
+  note: string
+  createdAt: string
+  reviewSessionId: string
+  reviewSubmissionId: string
+}
+
 export interface ReviewMark {
   id: string
   kind: ReviewKind
@@ -45,6 +54,28 @@ export async function saveReviews(notePath: string, reviews: ReviewMark[]): Prom
   const path = reviewPath(notePath)
   if (!(await exists(path.folder))) await mkdir(path.folder, { recursive: true })
   await writeTextFile(path.file, JSON.stringify(reviews, null, 2))
+}
+
+function deliveryNotesPath(notePath: string) {
+  const { dir, file } = parts(notePath)
+  return { folder: `${dir}/.gravitas/reviews`, file: `${dir}/.gravitas/reviews/${file}.notes.json` }
+}
+
+export async function loadReviewDeliveryNotes(notePath: string): Promise<ReviewDeliveryNote[]> {
+  const path = deliveryNotesPath(notePath).file
+  if (!(await exists(path))) return []
+  try {
+    const parsed = JSON.parse(await readTextFile(path))
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+export async function saveReviewDeliveryNotes(notePath: string, notes: ReviewDeliveryNote[]): Promise<void> {
+  const path = deliveryNotesPath(notePath)
+  if (!(await exists(path.folder))) await mkdir(path.folder, { recursive: true })
+  await writeTextFile(path.file, JSON.stringify(notes, null, 2))
 }
 
 export function makeReview(kind: ReviewKind, selectedText: string, source: string, comment = ''): ReviewMark {
