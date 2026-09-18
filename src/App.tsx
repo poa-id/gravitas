@@ -448,6 +448,49 @@ export default function App() {
     }
   }
 
+  const handleNewNote = async (shelf: string[] = []) => {
+    const ws = workshopRef.current
+    if (!ws) return
+    await flushSave()
+    try {
+      const note = await createNewNote(ws.path, shelf)
+      setActiveNote(note)
+      setNoteContent('')
+      setSaveState('unsaved')
+      setIsNewNote(true)
+      await setPreference('lastNotePath', note.path)
+      await refreshWorkshop(ws.path)
+      setNavOpen(false)
+    } catch (err) {
+      console.error('Failed to create note:', err)
+    }
+  }
+
+  const handleNewScratchEntry = async () => {
+    const ws = workshopRef.current
+    if (!ws) return
+    const now = new Date()
+    const datePart = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    const timePart = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    const divider = `\n§ ${datePart} · ${timePart}\n\n`
+    const isScratchNow = activeNoteRef.current?.shelf.length === 0 && activeNoteRef.current?.name === 'scratch'
+    if (isScratchNow) editorRef.current?.appendEntry(divider)
+    else {
+      await flushSave()
+      const scratch = await ensureScratch(ws.path)
+      const existing = await readNote(scratch.path).catch(() => '')
+      const newContent = existing + divider
+      await writeNote(scratch.path, newContent)
+      setActiveNote(scratch)
+      setNoteContent(newContent)
+      setSaveState('set')
+      await setPreference('lastNotePath', scratch.path)
+      await refreshWorkshop(ws.path)
+    }
+    setNavOpen(false)
+    void showToastOnce()
+  }
+
   const handleTodayFolio = async () => {
     if (!workshop) return
     await flushSave()
@@ -575,6 +618,8 @@ export default function App() {
         onNoteSelect={handleNoteSelect}
         onTodayFolio={handleTodayFolio}
         onScratchOpen={handleScratchOpen}
+        onNewNote={handleNewNote}
+        onNewScratchEntry={handleNewScratchEntry}
         workshop={workshop}
         onNoteDeleted={handleNoteDeleted}
         onNoteMoved={handleNoteMoved}
