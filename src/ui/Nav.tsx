@@ -96,7 +96,6 @@ export default function Nav({
   onNoteDeleted, onNoteMoved, onRenamed, onRefresh, noteTitles,
 }: NavProps) {
   const [search, setSearch] = useState('')
-  const [newMenuOpen, setNewMenuOpen] = useState(false)
   const [signals, setSignals] = useState<Map<string, NoteSignals>>(new Map())
   const scanStarted = useRef(false)
   const [renamingNote, setRenamingNote] = useState<NoteFile | null>(null)
@@ -290,11 +289,6 @@ export default function Nav({
   const handleSelect = (note: NoteFile) => { onNoteSelect(note); onClose() }
   const todayStr = localDateStr(new Date())
   const mod = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'
-  const chooseNewShelf = () => {
-    setNewMenuOpen(false)
-    setNewShelfMode(true)
-  }
-
   const openPreferences = () => {
     onClose()
     setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', {
@@ -331,22 +325,9 @@ export default function Nav({
 
         <div className="gv-nav-body">
           <input className="gv-nav-search" placeholder="Find a note…" value={search} onChange={e => setSearch(e.target.value)} autoFocus />
-          <div className="gv-nav-new-wrap">
-            <button className="gv-nav-new-trigger" onClick={() => setNewMenuOpen(v => !v)} aria-expanded={newMenuOpen}>
-              <span>+ New</span><span className="gv-nav-new-chevron">{newMenuOpen ? '▴' : '▾'}</span>
-            </button>
-            {newMenuOpen && <div className="gv-nav-new-menu">
-              <button onClick={() => void onNewNote([])}><span>Note</span><kbd>{mod}N</kbd></button>
-              <button onClick={() => { setNewMenuOpen(false); onTodayFolio(); onClose() }}><span>Today's folio</span><kbd>{mod}D</kbd></button>
-              <button onClick={() => void onNewScratchEntry()}><span>Scratch entry</span><kbd>{mod}S</kbd></button>
-              {workshop.shelves.length > 0 && <>
-                <div className="gv-nav-new-divider" />
-                <span className="gv-nav-new-label">On a shelf</span>
-                {workshop.shelves.map(shelf => <button key={shelf.path} onClick={() => void onNewNote([shelf.name])}><span>{formatNoteName(shelf.name)}</span></button>)}
-              </>}
-              <div className="gv-nav-new-divider" />
-              <button className="gv-nav-new-shelf-action" onClick={chooseNewShelf}><span>+ New shelf</span></button>
-            </div>}
+          <div className="gv-nav-quick-actions">
+            <button onClick={() => void onNewNote([])}><span>+ New note</span><kbd>{mod}N</kbd></button>
+            <button onClick={() => void onNewScratchEntry()}><span>Scratch entry</span><kbd>{mod}S</kbd></button>
           </div>
 
           {filtered && (
@@ -405,7 +386,11 @@ export default function Nav({
                     {isRenamingThisShelf ? <input ref={renameShelfInputRef} className="gv-nav-rename-input" value={renameShelfValue}
                       onChange={e => setRenameShelfValue(e.target.value)} onKeyDown={handleRenameShelfKeyDown}
                       onBlur={commitRenameShelf} onClick={e => e.stopPropagation()} />
-                      : <span className="gv-nav-shelf-name"><span className="gv-nav-chevron">{isCollapsed ? '▸' : '▾'}</span>{formatNoteName(shelf.name)}</span>}
+                      : <>
+                        <span className="gv-nav-shelf-name"><span className="gv-nav-chevron">{isCollapsed ? '▸' : '▾'}</span>{formatNoteName(shelf.name)}</span>
+                        <button className="gv-nav-shelf-add" title={`New note in ${formatNoteName(shelf.name)}`} aria-label={`New note in ${formatNoteName(shelf.name)}`}
+                          onClick={e => { e.stopPropagation(); void onNewNote([shelf.name]) }}>+</button>
+                      </>}
                   </div>
                   {!isCollapsed && !isRenamingThisShelf && <div className="gv-nav-shelf-notes">
                     {shelf.notes.slice(0, 6).map(note => renderNoteRow(note, '', formatNoteName(note.name)))}
@@ -417,7 +402,7 @@ export default function Nav({
               <div className="gv-nav-add-shelf-row">
                 {newShelfMode ? <input ref={newShelfInputRef} className="gv-nav-new-shelf-input" placeholder="Shelf name…"
                   value={newShelfName} onChange={e => setNewShelfName(e.target.value)} onKeyDown={handleNewShelfKeyDown} onBlur={commitNewShelf} />
-                  : <button className="gv-nav-add-shelf-btn" onClick={() => setNewShelfMode(true)} title="New shelf">+</button>}
+                  : <button className="gv-nav-add-shelf-btn" onClick={() => setNewShelfMode(true)}>+ New shelf</button>}
               </div>
             </div>
           )}
