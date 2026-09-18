@@ -140,23 +140,30 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
       const spelling = target.closest('.gv-spelling-error')
       const grammar = target.closest('.gv-grammar-error')
       if (!spelling && !grammar) { this.closeMenu(); return }
-      const selection = window.getSelection()
-      if (!selection) return
-      const range = document.createRange()
-      range.selectNodeContents(grammar ?? spelling!)
-      const pre = document.createRange()
-      pre.selectNodeContents(this.view.contentDOM)
-      pre.setEnd(range.startContainer, range.startOffset)
-      const from = pre.toString().length
-      const to = from + range.toString().length
+      // CodeMirror mark decorations may share a DOM text node with surrounding
+      // prose, so deriving document offsets from DOM text length is not reliable.
+      // The clicked decoration itself does tell us the exact visible word. Match
+      // that word against the current document and choose the occurrence nearest
+      // the editor selection; the menu remains anchored to the clicked DOM mark.
       if (grammar && this.language === 'en') {
-        const issue = this.grammarIssues.find(item => from >= item.from && to <= item.to)
+        const visible = grammar.textContent?.trim() ?? ''
+        const candidates = this.grammarIssues.filter(item => this.view.state.sliceDoc(item.from, item.to).trim() === visible)
+        const head = this.view.state.selection.main.head
+        const issue = candidates.sort((a, b) => Math.abs(a.from - head) - Math.abs(b.from - head))[0]
         if (issue) { event.preventDefault(); event.stopPropagation(); this.openGrammarMenu(issue, grammar as HTMLElement); return }
       }
       if (!spelling || !this.spell) return
-      const found = wordAt(this.view, from)
-      if (!found || this.spell.correct(found.word) || this.ignored.has(wordKey(found.word)) || this.workshopWords.has(wordKey(found.word))) return
-      event.preventDefault(); event.stopPropagation(); this.openSpellingMenu(found.word, found.from, found.to, spelling as HTMLElement)
+      const word = spelling.textContent?.trim() ?? ''
+      if (!word || this.spell.correct(word) || this.ignored.has(wordKey(word)) || this.workshopWords.has(wordKey(word))) return
+      const source = this.view.state.doc.toString()
+      const matches: Array<{ from: number; to: number }> = []
+      wordPattern.lastIndex = 0
+      let match: RegExpExecArray | null
+      while ((match = wordPattern.exec(source))) if (match[0] === word) matches.push({ from: match.index, to: match.index + word.length })
+      if (!matches.length) return
+      const head = this.view.state.selection.main.head
+      const found = matches.sort((a, b) => Math.abs(a.from - head) - Math.abs(b.from - head))[0]
+      event.preventDefault(); event.stopPropagation(); this.openSpellingMenu(word, found.from, found.to, spelling as HTMLElement)
     }
     view.contentDOM.addEventListener('pointerdown', this.pointerHandler)
 
