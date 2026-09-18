@@ -151,12 +151,12 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
       const to = from + range.toString().length
       if (grammar && this.language === 'en') {
         const issue = this.grammarIssues.find(item => from >= item.from && to <= item.to)
-        if (issue) { event.preventDefault(); event.stopPropagation(); this.openGrammarMenu(issue); return }
+        if (issue) { event.preventDefault(); event.stopPropagation(); this.openGrammarMenu(issue, grammar as HTMLElement); return }
       }
       if (!spelling || !this.spell) return
       const found = wordAt(this.view, from)
       if (!found || this.spell.correct(found.word) || this.ignored.has(wordKey(found.word)) || this.workshopWords.has(wordKey(found.word))) return
-      event.preventDefault(); event.stopPropagation(); this.openSpellingMenu(found.word, found.from, found.to)
+      event.preventDefault(); event.stopPropagation(); this.openSpellingMenu(found.word, found.from, found.to, spelling as HTMLElement)
     }
     view.contentDOM.addEventListener('pointerdown', this.pointerHandler)
 
@@ -219,12 +219,12 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
     this.closeMenu(); this.view.focus()
   }
 
-  private positionMenu(menu: HTMLDivElement, from: number, to: number) {
+  private positionMenu(menu: HTMLDivElement, anchor: HTMLElement) {
     document.body.appendChild(menu); this.menu = menu
-    const start = this.view.coordsAtPos(from), end = this.view.coordsAtPos(to), rect = menu.getBoundingClientRect()
-    const left = Math.max(10, Math.min(window.innerWidth - rect.width - 10, start?.left ?? 10))
-    const below = (end?.bottom ?? 0) + 7
-    const top = below + rect.height < window.innerHeight - 10 ? below : Math.max(10, (start?.top ?? 10) - rect.height - 7)
+    const target = anchor.getBoundingClientRect(), rect = menu.getBoundingClientRect()
+    const left = Math.max(10, Math.min(window.innerWidth - rect.width - 10, target.left))
+    const below = target.bottom + 7
+    const top = below + rect.height < window.innerHeight - 10 ? below : Math.max(10, target.top - rect.height - 7)
     menu.style.left = `${left}px`; menu.style.top = `${top}px`
   }
 
@@ -242,7 +242,7 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
 
   private addDivider(menu: HTMLDivElement) { const divider = document.createElement('i'); divider.className = 'gv-spell-divider'; menu.appendChild(divider) }
 
-  private openSpellingMenu(word: string, from: number, to: number) {
+  private openSpellingMenu(word: string, from: number, to: number, anchor?: HTMLElement) {
     if (!this.spell) return
     this.closeMenu()
     const menu = document.createElement('div'); menu.className = 'gv-spell-menu'; menu.setAttribute('role', 'menu'); menu.setAttribute('aria-label', `Spelling suggestions for ${word}`)
@@ -266,10 +266,10 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
     const ignore = document.createElement('button'); ignore.type = 'button'; ignore.className = 'gv-spell-ignore'; ignore.setAttribute('role', 'menuitem'); ignore.textContent = 'Ignore for now'
     ignore.addEventListener('pointerdown', event => event.stopPropagation())
     ignore.addEventListener('click', () => { this.ignored.add(wordKey(word)); this.closeMenu(); this.refresh(); this.view.focus() })
-    menu.appendChild(ignore); this.positionMenu(menu, from, to)
+    menu.appendChild(ignore); if (anchor) this.positionMenu(menu, anchor)
   }
 
-  private openGrammarMenu(issue: GrammarIssue) {
+  private openGrammarMenu(issue: GrammarIssue, anchor?: HTMLElement) {
     this.closeMenu()
     const menu = document.createElement('div'); menu.className = 'gv-spell-menu gv-grammar-menu'; menu.setAttribute('role', 'menu'); menu.setAttribute('aria-label', 'Grammar suggestion')
     const label = document.createElement('span'); label.className = 'gv-grammar-label'; label.textContent = 'Grammar'; menu.appendChild(label)
@@ -278,7 +278,7 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
     const ignore = document.createElement('button'); ignore.type = 'button'; ignore.className = 'gv-spell-ignore'; ignore.setAttribute('role', 'menuitem'); ignore.textContent = 'Ignore for now'
     ignore.addEventListener('pointerdown', event => event.stopPropagation())
     ignore.addEventListener('click', () => { this.ignoredGrammar.add(issue.ignoreKey); this.grammarIssues = this.grammarIssues.filter(item => item.ignoreKey !== issue.ignoreKey); this.closeMenu(); this.refresh(); this.view.focus() })
-    menu.appendChild(ignore); this.positionMenu(menu, issue.from, issue.to)
+    menu.appendChild(ignore); if (anchor) this.positionMenu(menu, anchor)
   }
 
   private async ensureGrammarLinter() {
