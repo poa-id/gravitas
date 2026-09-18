@@ -111,6 +111,7 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
   private modeObserver: MutationObserver
   private languageHandler: (event: Event) => void
   private pointerHandler: (event: PointerEvent) => void
+  private grammarUnavailable = false
   private outsideHandler: (event: PointerEvent) => void
   private keyHandler: (event: KeyboardEvent) => void
   private focusHandler: () => void
@@ -134,7 +135,11 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
 
     this.pointerHandler = (event: PointerEvent) => {
       if (this.language === 'off' || !isAudit(this.view)) return
-      const pos = this.view.posAtCoords({ x: event.clientX, y: event.clientY })
+      if (!(event.target instanceof Node) || !this.view.contentDOM.contains(event.target)) return
+      const rect = this.view.contentDOM.getBoundingClientRect()
+      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) return
+      let pos: number | null = null
+      try { pos = this.view.posAtCoords({ x: event.clientX, y: event.clientY }) } catch { return }
       if (pos === null) return
       if (this.language === 'en') {
         const grammar = this.grammarIssues.find(issue => pos >= issue.from && pos <= issue.to)
@@ -274,7 +279,9 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
   }
 
   private async ensureGrammarLinter() {
+    if (this.grammarUnavailable) return null
     if (this.grammarLinter) return this.grammarLinter
+    if (import.meta.env.MODE === 'web') { this.grammarUnavailable = true; return null }
     const [{ WorkerLinter, Dialect }, { binary }] = await Promise.all([import('harper.js'), import('harper.js/binary')])
     if (this.disposed) return null
     const linter = new WorkerLinter({ binary, dialect: Dialect.American }); await linter.setup(); await linter.setLintConfig({ SpellCheck: false })
@@ -301,7 +308,7 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
         return { from: span.start, to: span.end, message, suggestions, ignoreKey: `${marked}\u0000${message}` } as GrammarIssue
       }).filter((issue: GrammarIssue) => issue.from >= 0 && issue.to <= source.length && issue.to > issue.from && !this.ignoredGrammar.has(issue.ignoreKey))
       this.refresh()
-    } catch (error) { console.error('Failed to run Harper grammar check:', error) }
+    } catch (error) { this.grammarUnavailable = true; this.grammarIssues = []; this.refresh(); console.error('Failed to run Harper grammar check:', error) }
   }
 
   private async setLanguage(language: SpellcheckLanguage) {
