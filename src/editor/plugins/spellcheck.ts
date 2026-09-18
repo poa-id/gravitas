@@ -81,18 +81,6 @@ function buildDecorations(view: EditorView, spell: NSpell | null, language: Spel
   return builder.finish()
 }
 
-function wordAt(view: EditorView, pos: number) {
-  const line = view.state.doc.lineAt(pos)
-  wordPattern.lastIndex = 0
-  let match: RegExpExecArray | null
-  while ((match = wordPattern.exec(line.text))) {
-    const from = line.from + match.index
-    const to = from + match[0].length
-    if (pos >= from && pos <= to) return { word: match[0], from, to }
-  }
-  return null
-}
-
 export const spellcheckPlugin = ViewPlugin.fromClass(class {
   decorations: DecorationSet = Decoration.none
   private language: SpellcheckLanguage = 'off'
