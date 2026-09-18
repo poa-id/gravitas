@@ -10,6 +10,8 @@ export interface ReviewDeliveryNote {
   createdAt: string
   reviewSessionId: string
   reviewSubmissionId: string
+  status?: ReviewStatus
+  resolvedAt?: string
 }
 
 export interface ReviewMark {
