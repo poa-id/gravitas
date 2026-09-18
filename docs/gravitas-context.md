@@ -14,10 +14,9 @@ Repo: `github.com/poa-id/gravitas`
 
 ## The User
 
-The owner (Pablo) — designer/maker with ADHD. Captures first on paper, needs
-digital to be as frictionless as paper. Thinks in short fragments that accumulate.
-Uses the app on Mac primarily. Values: ownership, permanence, craft,
-intentionality. Despises: subscriptions, telemetry, clutter, systems that manage
+The owner (Pedro) — designer/maker and writer. Uses the app on Mac primarily.
+Values: ownership, permanence, craft, intentionality, quiet software, and plain
+files. Despises: subscriptions, telemetry, clutter, and systems that manage
 instead of serve.
 
 ## Philosophy (Non-negotiable)
@@ -114,7 +113,12 @@ Grain overlay: `body::before` SVG fractalNoise at 0.032 opacity. Do not remove.
 | ⌘N | Create a new named note on the workshop floor |
 | ⌘D | Open today's folio |
 | ⌘K | Toggle nav panel |
-| Escape | Close nav (when open) |
+| ⌘, | Open Preferences |
+| ⌘1 / ⌘2 / ⌘3 | Write / Read / Audit |
+| Read: C / R / ? / X | Comment / Revisit / Question / Cut? on selection |
+| Audit: ⌘Enter | Resolve active review mark |
+| Audit: ⌥↓ / ⌥↑ | Next / previous review mark |
+| Escape | Close nav; in Read, clear review selection or return to Write |
 
 ## Features Implemented
 
@@ -143,6 +147,13 @@ Grain overlay: `body::before` SVG fractalNoise at 0.032 opacity. Do not remove.
 - **Promoted entry styling** — dimmed at 0.45 opacity, first line struck through
 - **One-time scratch toast** — appears on first ⌘S, never again (`seenScratchToast` in prefs)
 - **Scratch editor mode** — no title, quiet "scratch" label, word count in statusbar
+- **Write / Read / Audit** — intent-specific manuscript modes; Write stays interruption-free, Read supports review marks, Audit resolves proofing/review work
+- **Local proofing in Audit** — nspell dictionaries; English grammar via Harper where supported
+- **Share for Review** — creates an immutable temporary review copy and public review URL; no reviewer account or Gravitas install required
+- **Reviewer marks** — Comment / Revisit / Question / Cut?; multiple independent reviewer submissions per share
+- **Review import** — reviewer marks return to Audit; general reviewer notes are stored separately and can be dismissed
+- **Temporary review transport** — review copies expire after seven days; the local Markdown manuscript remains authoritative
+- **Discoverable creation in Nav** — mouse/touch paths for New note, Scratch entry, New shelf, plus contextual + on each shelf
 
 ## Scratch Entry Format
 
@@ -202,3 +213,28 @@ Used by: ⌘S (appendEntry on scratch), promote (insertAt for `> ~~promoted~~` m
 - Do not use any CSS framework (Tailwind, etc.) — all styles are hand-written CSS variables
 - Do not add sub-shelves — one level of folders only
 - ⌘S is new scratch entry — NOT save (autosave handles saving silently)
+
+
+## Current Product Loop (0.1)
+
+Write → Read & Review → Audit & Resolve → Share for Review.
+
+- **Write** is creation. No review/proofing interruption.
+- **Read & Review** is proofing by reading and leaving contextual marks.
+- **Audit & Resolve** is the finishing bench: proofing, imported reviewer marks, and general reviewer notes.
+- **Share for Review** uploads an immutable review copy only. Reviewers can mark but cannot edit the manuscript.
+- The common workflow must remain usable with mouse/touch; shortcuts accelerate it but are not required knowledge.
+
+## Share for Review Contract
+
+- Desktop talks to a portable Review API; the current first adapter is a Cloudflare Worker backed by D1 + R2.
+- Public review token and private owner key have separate roles; secrets are hashed server-side.
+- A share expires after exactly seven days. A fresh share creates a fresh URL.
+- One URL may receive multiple reviewer submissions.
+- Remote review copies are transport, not storage. Imported feedback persists locally under `.gravitas/reviews/`; local share metadata lives under `.gravitas/shares/`.
+- Changed or ambiguous passages must fail visibly during anchoring rather than silently attaching to an arbitrary passage.
+- Reviewer links/wikilinks are static snapshot content; they do not navigate the author's workshop.
+
+## Release 0.1 Gate
+
+Before merging `release/v1` to `main`: core/share manual QA, clean browser console, persistence and Markdown/rendering smoke tests, documentation current, `npm ci` + `build:web` green, tests green when present, and native Tauri builds validated for macOS and Windows. Never merge to `main` without explicit owner approval.
