@@ -10,7 +10,10 @@
     "build": "npm run spell:assets && tsc && vite build",
     "build:web": "npm run spell:assets && tsc && vite build --mode web",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "check": "tsc --noEmit && npm run test",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.3",
@@ -40,6 +43,7 @@
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
     "typescript": "~5.8.3",
-    "vite": "^7.0.4"
+    "vite": "^7.0.4",
+    "vitest": "^3.2.4"
   }
 }
