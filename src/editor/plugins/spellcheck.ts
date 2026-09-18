@@ -135,25 +135,28 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
 
     this.pointerHandler = (event: PointerEvent) => {
       if (this.language === 'off' || !isAudit(this.view)) return
-      if (!(event.target instanceof Node) || !this.view.contentDOM.contains(event.target)) return
-      const rect = this.view.contentDOM.getBoundingClientRect()
-      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) return
-      let pos: number | null = null
-      try { pos = this.view.posAtCoords({ x: event.clientX, y: event.clientY }) } catch { return }
-      if (pos === null) return
-      if (this.language === 'en') {
-        const grammar = this.grammarIssues.find(issue => pos >= issue.from && pos <= issue.to)
-        if (grammar) {
-          event.preventDefault(); event.stopPropagation(); this.openGrammarMenu(grammar); return
-        }
+      const target = event.target
+      if (!(target instanceof HTMLElement)) return
+      const spelling = target.closest('.gv-spelling-error')
+      const grammar = target.closest('.gv-grammar-error')
+      if (!spelling && !grammar) { this.closeMenu(); return }
+      const selection = window.getSelection()
+      if (!selection) return
+      const range = document.createRange()
+      range.selectNodeContents(grammar ?? spelling!)
+      const pre = document.createRange()
+      pre.selectNodeContents(this.view.contentDOM)
+      pre.setEnd(range.startContainer, range.startOffset)
+      const from = pre.toString().length
+      const to = from + range.toString().length
+      if (grammar && this.language === 'en') {
+        const issue = this.grammarIssues.find(item => from >= item.from && to <= item.to)
+        if (issue) { event.preventDefault(); event.stopPropagation(); this.openGrammarMenu(issue); return }
       }
-      if (!this.spell) return
-      const found = wordAt(this.view, pos)
-      if (!found || this.spell.correct(found.word) || this.ignored.has(wordKey(found.word)) || this.workshopWords.has(wordKey(found.word))) {
-        this.closeMenu(); return
-      }
-      event.preventDefault(); event.stopPropagation()
-      this.openSpellingMenu(found.word, found.from, found.to)
+      if (!spelling || !this.spell) return
+      const found = wordAt(this.view, from)
+      if (!found || this.spell.correct(found.word) || this.ignored.has(wordKey(found.word)) || this.workshopWords.has(wordKey(found.word))) return
+      event.preventDefault(); event.stopPropagation(); this.openSpellingMenu(found.word, found.from, found.to)
     }
     view.contentDOM.addEventListener('pointerdown', this.pointerHandler)
 
