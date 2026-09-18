@@ -3,6 +3,9 @@ name: Desktop Build
 on:
   pull_request:
   workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   build:
@@ -26,6 +29,7 @@ jobs:
         run: npm ci
       - name: Build desktop app
         run: npm run tauri build
+      # Alpha artifacts are intentionally unsigned. Signing/notarization is a public-release gate.
       - name: Upload desktop bundles
         uses: actions/upload-artifact@v4
         with:
