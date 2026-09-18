@@ -14,6 +14,8 @@ interface NavProps {
   onNoteSelect: (note: NoteFile) => void
   onTodayFolio: () => void
   onScratchOpen?: () => void
+  onNewNote: (shelf?: string[]) => Promise<void>
+  onNewScratchEntry: () => Promise<void>
   workshop: Workshop
   onNoteDeleted: (note: NoteFile) => void
   onNoteMoved: (note: NoteFile, newNote: NoteFile) => void
@@ -90,10 +92,11 @@ function NoteSignalDots({ signals }: { signals: NoteSignals | null }) {
 let draggedNotePath: string | null = null
 
 export default function Nav({
-  open, onClose, onNoteSelect, onTodayFolio, onScratchOpen, workshop,
+  open, onClose, onNoteSelect, onTodayFolio, onScratchOpen, onNewNote, onNewScratchEntry, workshop,
   onNoteDeleted, onNoteMoved, onRenamed, onRefresh, noteTitles,
 }: NavProps) {
   const [search, setSearch] = useState('')
+  const [newMenuOpen, setNewMenuOpen] = useState(false)
   const [signals, setSignals] = useState<Map<string, NoteSignals>>(new Map())
   const scanStarted = useRef(false)
   const [renamingNote, setRenamingNote] = useState<NoteFile | null>(null)
@@ -287,6 +290,11 @@ export default function Nav({
   const handleSelect = (note: NoteFile) => { onNoteSelect(note); onClose() }
   const todayStr = localDateStr(new Date())
   const mod = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'
+  const chooseNewShelf = () => {
+    setNewMenuOpen(false)
+    setNewShelfMode(true)
+  }
+
   const openPreferences = () => {
     onClose()
     setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', {
@@ -323,6 +331,23 @@ export default function Nav({
 
         <div className="gv-nav-body">
           <input className="gv-nav-search" placeholder="Find a note…" value={search} onChange={e => setSearch(e.target.value)} autoFocus />
+          <div className="gv-nav-new-wrap">
+            <button className="gv-nav-new-trigger" onClick={() => setNewMenuOpen(v => !v)} aria-expanded={newMenuOpen}>
+              <span>+ New</span><span className="gv-nav-new-chevron">{newMenuOpen ? '▴' : '▾'}</span>
+            </button>
+            {newMenuOpen && <div className="gv-nav-new-menu">
+              <button onClick={() => void onNewNote([])}><span>Note</span><kbd>{mod}N</kbd></button>
+              <button onClick={() => { setNewMenuOpen(false); onTodayFolio(); onClose() }}><span>Today's folio</span><kbd>{mod}D</kbd></button>
+              <button onClick={() => void onNewScratchEntry()}><span>Scratch entry</span><kbd>{mod}S</kbd></button>
+              {workshop.shelves.length > 0 && <>
+                <div className="gv-nav-new-divider" />
+                <span className="gv-nav-new-label">On a shelf</span>
+                {workshop.shelves.map(shelf => <button key={shelf.path} onClick={() => void onNewNote([shelf.name])}><span>{formatNoteName(shelf.name)}</span></button>)}
+              </>}
+              <div className="gv-nav-new-divider" />
+              <button className="gv-nav-new-shelf-action" onClick={chooseNewShelf}><span>+ New shelf</span></button>
+            </div>}
+          </div>
 
           {filtered && (
             <div className="gv-nav-section">
