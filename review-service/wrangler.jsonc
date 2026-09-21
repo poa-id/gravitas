@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "gravitas-review",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-17",
+  "workers_dev": true,
+  "triggers": {
+    "crons": ["17 * * * *"]
+  },
+  "vars": {
+    "PUBLIC_REVIEW_BASE_URL": "https://gravitas-review.pjoa93.workers.dev",
+    "ALLOWED_ORIGINS": "https://gravitas-git-feature-share-for-review-poaids-projects.vercel.app,https://gravitas-review.pjoa93.workers.dev"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "gravitas-review",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "SNAPSHOTS",
+      "bucket_name": "gravitas-review-snapshots"
+    }
+  ]
+}
