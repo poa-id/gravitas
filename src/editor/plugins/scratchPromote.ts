@@ -199,30 +199,38 @@ export function createScratchPromotePlugin(
 
       onMouseMove(e: MouseEvent) {
         if (!onPromoteRef.current) { this.scheduleHide(); return }
-        const pos = this.view.posAtCoords({ x: e.clientX, y: e.clientY })
-        if (pos === null) { this.scheduleHide(); return }
 
-        const lineNo = this.view.state.doc.lineAt(pos).number
-        const entry = this.entries.find(en => !en.promoted && en.dividerLineNo === lineNo)
+        // Scratch affordances only belong to Scratch. Keeping this plugin mounted
+        // for every editor is convenient, but coordinate hit-testing outside
+        // Scratch is both unnecessary and fragile in CodeMirror.
+        const scratchEditor = this.view.dom.closest('.gv-editor')?.querySelector('.gv-scratch-label')
+        if (!scratchEditor) { this.scheduleHide(); return }
 
+        const target = e.target
+        if (!(target instanceof HTMLElement)) { this.scheduleHide(); return }
+        const lineEl = target.closest('.cm-line')
+        if (!(lineEl instanceof HTMLElement) || !this.view.contentDOM.contains(lineEl)) { this.scheduleHide(); return }
+
+        const lines = Array.from(this.view.contentDOM.querySelectorAll<HTMLElement>('.cm-line'))
+        const visibleLineIndex = lines.indexOf(lineEl)
+        if (visibleLineIndex < 0) { this.scheduleHide(); return }
+
+        // Divider lines carry our own class, so we can identify the hovered
+        // entry directly from the rendered DOM without CodeMirror geometry.
+        if (!lineEl.classList.contains('gv-scratch-divider-line')) { this.scheduleHide(); return }
+        const dateText = lineEl.textContent?.trim() ?? ''
+        const entry = this.entries.find(en => !en.promoted && dateText.includes(en.dateText))
         if (!entry) { this.scheduleHide(); return }
 
         if (this.hideTimer) { clearTimeout(this.hideTimer); this.hideTimer = null }
         this.hoveredDividerLineNo = entry.dividerLineNo
 
-        const lineFrom = this.view.state.doc.line(entry.dividerLineNo).from
-        const coords = this.view.coordsAtPos(lineFrom)
-        if (!coords) { this.scheduleHide(); return }
-
-        // coords are viewport-relative; position is fixed so no scroll offset needed
-        // Place promote button just left of the editor's left edge
+        const lineRect = lineEl.getBoundingClientRect()
         const editorRect = this.view.dom.getBoundingClientRect()
-        this.affordanceEl.style.top = `${coords.top}px`
+        this.affordanceEl.style.top = `${lineRect.top}px`
         this.affordanceEl.style.left = `${editorRect.left - 72}px`
         this.affordanceEl.classList.add('visible')
-
-        // Trash sits to the right of the divider line
-        this.trashEl.style.top = `${coords.top}px`
+        this.trashEl.style.top = `${lineRect.top}px`
         this.trashEl.style.right = `${window.innerWidth - editorRect.right - 4}px`
         this.trashEl.classList.add('visible')
       }

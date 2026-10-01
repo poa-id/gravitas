@@ -13,6 +13,7 @@ function inlineMarkdown(value: string): string {
     .replace(/__([^_]+)__/g, '<strong>$1</strong>')
     .replace(/\*([^*]+)\*/g, '<em>$1</em>')
     .replace(/_([^_]+)_/g, '<em>$1</em>')
+    .replace(/\^(\[[^\]]+\]|\([^\)]+\)|\{[^}]+\}|[A-Za-z0-9+\-=.,:;]+)\^/g, '<sup>$1</sup>')
 }
 
 export function renderMarkdown(markdown: string): string {

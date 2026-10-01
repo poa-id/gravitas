@@ -17,45 +17,45 @@ import Prefs from './ui/Prefs'
 const DEMO_NOTE = {
   title: 'Welcome to Gravitas',
   path: '__demo__',
-  content: `## What you can do here
+  content: `# Start here
 
-Write freely. This is your workshop — a place where raw thought becomes shaped work.
+Gravitas is a writing workshop built around plain Markdown files you own.
 
-### Text and emphasis
+Write without interruption. Read what you wrote. Finish deliberately.
 
-You can write in **bold** when something carries weight, or in *italics* when a word needs to lean. Use \`inline code\` for technical terms or precise references.
+## Write
 
-### Wikilinks and marks
+This is the working surface. Type normally. Use **bold**, *italics*, and \`inline code\` when they help the thought.
 
-Connect thoughts with [[wikilinks]] — type [[ and the name of any note. Mark ideas inline with #craft or #oficio. Links and marks are the nervous system of your workshop.
+Connect notes with [[wikilinks]]. Mark ideas inline with #craft or #oficio.
 
-### Catch
+?? What deserves another pass?
 
-Open a scratch note instantly with the catch shortcut. No file name, no shelf, no decisions. The thought lands safely and waits for you.
+Lines beginning with ?? become open questions you can return to later.
 
-### Open questions
+## Read & Review
 
-?? What makes a tool feel like it belongs to you?
+Switch to Read when you want to encounter the piece as a reader.
 
-Lines starting with ?? become open questions — collected across your whole workshop, never lost.
+Select any passage and leave a Comment, Revisit, Question, or Cut? mark. The manuscript does not change; the mark waits for you in Audit.
 
-### Blockquotes
+> The best writing sessions begin with a single line you almost didn't type.
 
-> The details are not the details. They make the design. — Charles Eames
+## Audit
 
-### Code
+Audit is the finishing bench. Work through unresolved marks, fix the manuscript, resolve the mark, and move to the next one.
 
-\`\`\`
-function gravitas() {
-  return presence + weight + calm
-}
-\`\`\`
+## Share for Review
+
+When the piece is ready for another pair of eyes, Share for Review creates a temporary review copy. Your original Markdown file stays in your workshop.
 
 ---
 
-The best writing sessions begin with a single line you almost didn't type.`,
+You do not need to learn all of Gravitas now.
+
+Create a note. Write something worth returning to.`,
   meta: {
-    date: 'May 2026',
+    date: 'September 2026',
     tags: ['#welcome'],
     type: 'note',
     words: 0,
@@ -448,6 +448,49 @@ export default function App() {
     }
   }
 
+  const handleNewNote = async (shelf: string[] = []) => {
+    const ws = workshopRef.current
+    if (!ws) return
+    await flushSave()
+    try {
+      const note = await createNewNote(ws.path, shelf)
+      setActiveNote(note)
+      setNoteContent('')
+      setSaveState('unsaved')
+      setIsNewNote(true)
+      await setPreference('lastNotePath', note.path)
+      await refreshWorkshop(ws.path)
+      setNavOpen(false)
+    } catch (err) {
+      console.error('Failed to create note:', err)
+    }
+  }
+
+  const handleNewScratchEntry = async () => {
+    const ws = workshopRef.current
+    if (!ws) return
+    const now = new Date()
+    const datePart = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    const timePart = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    const divider = `\n§ ${datePart} · ${timePart}\n\n`
+    const isScratchNow = activeNoteRef.current?.shelf.length === 0 && activeNoteRef.current?.name === 'scratch'
+    if (isScratchNow) editorRef.current?.appendEntry(divider)
+    else {
+      await flushSave()
+      const scratch = await ensureScratch(ws.path)
+      const existing = await readNote(scratch.path).catch(() => '')
+      const newContent = existing + divider
+      await writeNote(scratch.path, newContent)
+      setActiveNote(scratch)
+      setNoteContent(newContent)
+      setSaveState('set')
+      await setPreference('lastNotePath', scratch.path)
+      await refreshWorkshop(ws.path)
+    }
+    setNavOpen(false)
+    void showToastOnce()
+  }
+
   const handleTodayFolio = async () => {
     if (!workshop) return
     await flushSave()
@@ -575,6 +618,8 @@ export default function App() {
         onNoteSelect={handleNoteSelect}
         onTodayFolio={handleTodayFolio}
         onScratchOpen={handleScratchOpen}
+        onNewNote={handleNewNote}
+        onNewScratchEntry={handleNewScratchEntry}
         workshop={workshop}
         onNoteDeleted={handleNoteDeleted}
         onNoteMoved={handleNoteMoved}

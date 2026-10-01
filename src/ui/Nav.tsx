@@ -14,6 +14,8 @@ interface NavProps {
   onNoteSelect: (note: NoteFile) => void
   onTodayFolio: () => void
   onScratchOpen?: () => void
+  onNewNote: (shelf?: string[]) => Promise<void>
+  onNewScratchEntry: () => Promise<void>
   workshop: Workshop
   onNoteDeleted: (note: NoteFile) => void
   onNoteMoved: (note: NoteFile, newNote: NoteFile) => void
@@ -90,7 +92,7 @@ function NoteSignalDots({ signals }: { signals: NoteSignals | null }) {
 let draggedNotePath: string | null = null
 
 export default function Nav({
-  open, onClose, onNoteSelect, onTodayFolio, onScratchOpen, workshop,
+  open, onClose, onNoteSelect, onTodayFolio, onScratchOpen, onNewNote, onNewScratchEntry, workshop,
   onNoteDeleted, onNoteMoved, onRenamed, onRefresh, noteTitles,
 }: NavProps) {
   const [search, setSearch] = useState('')
@@ -323,6 +325,10 @@ export default function Nav({
 
         <div className="gv-nav-body">
           <input className="gv-nav-search" placeholder="Find a note…" value={search} onChange={e => setSearch(e.target.value)} autoFocus />
+          <div className="gv-nav-quick-actions">
+            <button onClick={() => void onNewNote([])}><span>+ New note</span><kbd>{mod}N</kbd></button>
+            <button onClick={() => void onNewScratchEntry()}><span>Scratch entry</span><kbd>{mod}S</kbd></button>
+          </div>
 
           {filtered && (
             <div className="gv-nav-section">
@@ -380,7 +386,11 @@ export default function Nav({
                     {isRenamingThisShelf ? <input ref={renameShelfInputRef} className="gv-nav-rename-input" value={renameShelfValue}
                       onChange={e => setRenameShelfValue(e.target.value)} onKeyDown={handleRenameShelfKeyDown}
                       onBlur={commitRenameShelf} onClick={e => e.stopPropagation()} />
-                      : <span className="gv-nav-shelf-name"><span className="gv-nav-chevron">{isCollapsed ? '▸' : '▾'}</span>{formatNoteName(shelf.name)}</span>}
+                      : <>
+                        <span className="gv-nav-shelf-name"><span className="gv-nav-chevron">{isCollapsed ? '▸' : '▾'}</span>{formatNoteName(shelf.name)}</span>
+                        <button className="gv-nav-shelf-add" title={`New note in ${formatNoteName(shelf.name)}`} aria-label={`New note in ${formatNoteName(shelf.name)}`}
+                          onClick={e => { e.stopPropagation(); void onNewNote([shelf.name]) }}>+</button>
+                      </>}
                   </div>
                   {!isCollapsed && !isRenamingThisShelf && <div className="gv-nav-shelf-notes">
                     {shelf.notes.slice(0, 6).map(note => renderNoteRow(note, '', formatNoteName(note.name)))}
@@ -392,7 +402,7 @@ export default function Nav({
               <div className="gv-nav-add-shelf-row">
                 {newShelfMode ? <input ref={newShelfInputRef} className="gv-nav-new-shelf-input" placeholder="Shelf name…"
                   value={newShelfName} onChange={e => setNewShelfName(e.target.value)} onKeyDown={handleNewShelfKeyDown} onBlur={commitNewShelf} />
-                  : <button className="gv-nav-add-shelf-btn" onClick={() => setNewShelfMode(true)} title="New shelf">+</button>}
+                  : <button className="gv-nav-add-shelf-btn" onClick={() => setNewShelfMode(true)}>+ New shelf</button>}
               </div>
             </div>
           )}

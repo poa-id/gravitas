@@ -81,18 +81,6 @@ function buildDecorations(view: EditorView, spell: NSpell | null, language: Spel
   return builder.finish()
 }
 
-function wordAt(view: EditorView, pos: number) {
-  const line = view.state.doc.lineAt(pos)
-  wordPattern.lastIndex = 0
-  let match: RegExpExecArray | null
-  while ((match = wordPattern.exec(line.text))) {
-    const from = line.from + match.index
-    const to = from + match[0].length
-    if (pos >= from && pos <= to) return { word: match[0], from, to }
-  }
-  return null
-}
-
 export const spellcheckPlugin = ViewPlugin.fromClass(class {
   decorations: DecorationSet = Decoration.none
   private language: SpellcheckLanguage = 'off'
@@ -106,10 +94,12 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
   private grammarLinter: any = null
   private grammarTimer: ReturnType<typeof setTimeout> | null = null
   private grammarRun = 0
+  private refreshQueued = false
   private menu: HTMLDivElement | null = null
   private modeObserver: MutationObserver
   private languageHandler: (event: Event) => void
   private pointerHandler: (event: PointerEvent) => void
+  private grammarUnavailable = false
   private outsideHandler: (event: PointerEvent) => void
   private keyHandler: (event: KeyboardEvent) => void
   private focusHandler: () => void
@@ -133,21 +123,35 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
 
     this.pointerHandler = (event: PointerEvent) => {
       if (this.language === 'off' || !isAudit(this.view)) return
-      const pos = this.view.posAtCoords({ x: event.clientX, y: event.clientY })
-      if (pos === null) return
-      if (this.language === 'en') {
-        const grammar = this.grammarIssues.find(issue => pos >= issue.from && pos <= issue.to)
-        if (grammar) {
-          event.preventDefault(); event.stopPropagation(); this.openGrammarMenu(grammar); return
-        }
+      const target = event.target
+      if (!(target instanceof HTMLElement)) return
+      const spelling = target.closest('.gv-spelling-error')
+      const grammar = target.closest('.gv-grammar-error')
+      if (!spelling && !grammar) { this.closeMenu(); return }
+      // CodeMirror mark decorations may share a DOM text node with surrounding
+      // prose, so deriving document offsets from DOM text length is not reliable.
+      // The clicked decoration itself does tell us the exact visible word. Match
+      // that word against the current document and choose the occurrence nearest
+      // the editor selection; the menu remains anchored to the clicked DOM mark.
+      if (grammar && this.language === 'en') {
+        const visible = grammar.textContent?.trim() ?? ''
+        const candidates = this.grammarIssues.filter(item => this.view.state.sliceDoc(item.from, item.to).trim() === visible)
+        const head = this.view.state.selection.main.head
+        const issue = candidates.sort((a, b) => Math.abs(a.from - head) - Math.abs(b.from - head))[0]
+        if (issue) { event.preventDefault(); event.stopPropagation(); this.openGrammarMenu(issue, grammar as HTMLElement); return }
       }
-      if (!this.spell) return
-      const found = wordAt(this.view, pos)
-      if (!found || this.spell.correct(found.word) || this.ignored.has(wordKey(found.word)) || this.workshopWords.has(wordKey(found.word))) {
-        this.closeMenu(); return
-      }
-      event.preventDefault(); event.stopPropagation()
-      this.openSpellingMenu(found.word, found.from, found.to)
+      if (!spelling || !this.spell) return
+      const word = spelling.textContent?.trim() ?? ''
+      if (!word || this.spell.correct(word) || this.ignored.has(wordKey(word)) || this.workshopWords.has(wordKey(word))) return
+      const source = this.view.state.doc.toString()
+      const matches: Array<{ from: number; to: number }> = []
+      wordPattern.lastIndex = 0
+      let match: RegExpExecArray | null
+      while ((match = wordPattern.exec(source))) if (match[0] === word) matches.push({ from: match.index, to: match.index + word.length })
+      if (!matches.length) return
+      const head = this.view.state.selection.main.head
+      const found = matches.sort((a, b) => Math.abs(a.from - head) - Math.abs(b.from - head))[0]
+      event.preventDefault(); event.stopPropagation(); this.openSpellingMenu(word, found.from, found.to, spelling as HTMLElement)
     }
     view.contentDOM.addEventListener('pointerdown', this.pointerHandler)
 
@@ -178,7 +182,14 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
     })
   }
 
-  private refresh() { this.view.dispatch({ effects: refreshSpellcheck.of(null) }) }
+  private refresh() {
+    if (this.disposed || this.refreshQueued) return
+    this.refreshQueued = true
+    queueMicrotask(() => {
+      this.refreshQueued = false
+      if (!this.disposed) this.view.dispatch({ effects: refreshSpellcheck.of(null) })
+    })
+  }
   private closeMenu() { this.menu?.remove(); this.menu = null }
 
   private async loadWorkshopWords(path?: string | null) {
@@ -203,12 +214,12 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
     this.closeMenu(); this.view.focus()
   }
 
-  private positionMenu(menu: HTMLDivElement, from: number, to: number) {
+  private positionMenu(menu: HTMLDivElement, anchor: HTMLElement) {
     document.body.appendChild(menu); this.menu = menu
-    const start = this.view.coordsAtPos(from), end = this.view.coordsAtPos(to), rect = menu.getBoundingClientRect()
-    const left = Math.max(10, Math.min(window.innerWidth - rect.width - 10, start?.left ?? 10))
-    const below = (end?.bottom ?? 0) + 7
-    const top = below + rect.height < window.innerHeight - 10 ? below : Math.max(10, (start?.top ?? 10) - rect.height - 7)
+    const target = anchor.getBoundingClientRect(), rect = menu.getBoundingClientRect()
+    const left = Math.max(10, Math.min(window.innerWidth - rect.width - 10, target.left))
+    const below = target.bottom + 7
+    const top = below + rect.height < window.innerHeight - 10 ? below : Math.max(10, target.top - rect.height - 7)
     menu.style.left = `${left}px`; menu.style.top = `${top}px`
   }
 
@@ -226,7 +237,7 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
 
   private addDivider(menu: HTMLDivElement) { const divider = document.createElement('i'); divider.className = 'gv-spell-divider'; menu.appendChild(divider) }
 
-  private openSpellingMenu(word: string, from: number, to: number) {
+  private openSpellingMenu(word: string, from: number, to: number, anchor?: HTMLElement) {
     if (!this.spell) return
     this.closeMenu()
     const menu = document.createElement('div'); menu.className = 'gv-spell-menu'; menu.setAttribute('role', 'menu'); menu.setAttribute('aria-label', `Spelling suggestions for ${word}`)
@@ -250,10 +261,10 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
     const ignore = document.createElement('button'); ignore.type = 'button'; ignore.className = 'gv-spell-ignore'; ignore.setAttribute('role', 'menuitem'); ignore.textContent = 'Ignore for now'
     ignore.addEventListener('pointerdown', event => event.stopPropagation())
     ignore.addEventListener('click', () => { this.ignored.add(wordKey(word)); this.closeMenu(); this.refresh(); this.view.focus() })
-    menu.appendChild(ignore); this.positionMenu(menu, from, to)
+    menu.appendChild(ignore); if (anchor) this.positionMenu(menu, anchor)
   }
 
-  private openGrammarMenu(issue: GrammarIssue) {
+  private openGrammarMenu(issue: GrammarIssue, anchor?: HTMLElement) {
     this.closeMenu()
     const menu = document.createElement('div'); menu.className = 'gv-spell-menu gv-grammar-menu'; menu.setAttribute('role', 'menu'); menu.setAttribute('aria-label', 'Grammar suggestion')
     const label = document.createElement('span'); label.className = 'gv-grammar-label'; label.textContent = 'Grammar'; menu.appendChild(label)
@@ -262,11 +273,13 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
     const ignore = document.createElement('button'); ignore.type = 'button'; ignore.className = 'gv-spell-ignore'; ignore.setAttribute('role', 'menuitem'); ignore.textContent = 'Ignore for now'
     ignore.addEventListener('pointerdown', event => event.stopPropagation())
     ignore.addEventListener('click', () => { this.ignoredGrammar.add(issue.ignoreKey); this.grammarIssues = this.grammarIssues.filter(item => item.ignoreKey !== issue.ignoreKey); this.closeMenu(); this.refresh(); this.view.focus() })
-    menu.appendChild(ignore); this.positionMenu(menu, issue.from, issue.to)
+    menu.appendChild(ignore); if (anchor) this.positionMenu(menu, anchor)
   }
 
   private async ensureGrammarLinter() {
+    if (this.grammarUnavailable) return null
     if (this.grammarLinter) return this.grammarLinter
+    if (import.meta.env.MODE === 'web') { this.grammarUnavailable = true; return null }
     const [{ WorkerLinter, Dialect }, { binary }] = await Promise.all([import('harper.js'), import('harper.js/binary')])
     if (this.disposed) return null
     const linter = new WorkerLinter({ binary, dialect: Dialect.American }); await linter.setup(); await linter.setLintConfig({ SpellCheck: false })
@@ -293,7 +306,7 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
         return { from: span.start, to: span.end, message, suggestions, ignoreKey: `${marked}\u0000${message}` } as GrammarIssue
       }).filter((issue: GrammarIssue) => issue.from >= 0 && issue.to <= source.length && issue.to > issue.from && !this.ignoredGrammar.has(issue.ignoreKey))
       this.refresh()
-    } catch (error) { console.error('Failed to run Harper grammar check:', error) }
+    } catch (error) { this.grammarUnavailable = true; this.grammarIssues = []; this.refresh(); console.error('Failed to run Harper grammar check:', error) }
   }
 
   private async setLanguage(language: SpellcheckLanguage) {
@@ -317,7 +330,7 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
   destroy() {
     this.disposed = true
     if (this.grammarTimer) clearTimeout(this.grammarTimer)
-    if (this.grammarLinter) void this.grammarLinter.dispose()
+    if (this.grammarLinter) void Promise.resolve(this.grammarLinter.dispose()).catch(() => {})
     this.closeMenu(); this.modeObserver.disconnect(); this.view.contentDOM.removeEventListener('pointerdown', this.pointerHandler); this.view.contentDOM.removeEventListener('focusin', this.focusHandler)
     window.removeEventListener(SPELLCHECK_LANGUAGE_EVENT, this.languageHandler); window.removeEventListener('pointerdown', this.outsideHandler); window.removeEventListener('keydown', this.keyHandler)
   }
