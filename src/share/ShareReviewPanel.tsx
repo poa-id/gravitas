@@ -92,6 +92,7 @@ export default function ShareReviewPanel({ open, workshopPath, notePath, title, 
     <div className="gv-share-head"><div><span className="gv-share-eyebrow">Share for Review</span><h2>{title}</h2></div><button className="gv-share-close" onClick={onClose} aria-label="Close">×</button></div>
     {!configured ? <div className="gv-share-body"><p>The review service is not configured in this build.</p><p className="gv-share-muted">Your manuscript has not left this computer.</p></div> : !resolvedWorkshopPath ? <div className="gv-share-body"><p>Could not resolve the active workshop.</p><p className="gv-share-muted">Your manuscript has not left this computer.</p></div> : active && session ? <div className="gv-share-body">
       <p>A fixed review copy is available until <strong>{dateLabel(session.expiresAt)}</strong>.</p>
+      <p className="gv-share-live">{session.importedSubmissionIds.length ? <><strong>{session.importedSubmissionIds.length} review{session.importedSubmissionIds.length === 1 ? '' : 's'} received.</strong> Feedback is ready in Audit.</> : <>Waiting for reviews…</>}</p>
       <div className="gv-share-link"><input readOnly value={session.url} aria-label="Review link"/><button onClick={copy}>Copy</button></div>
       <div className="gv-share-actions"><button onClick={refresh} disabled={busy !== null}>{busy === 'refresh' ? 'Checking…' : 'Check for reviews'}</button><button className="quiet" onClick={revoke} disabled={busy !== null}>Close review copy</button></div>
     </div> : <div className="gv-share-body">
