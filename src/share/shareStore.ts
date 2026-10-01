@@ -10,6 +10,7 @@ export interface LocalShareSession {
   expiresAt: string
   snapshotSha256: string
   importedSubmissionIds: string[]
+  unseenSubmissionIds: string[]
 }
 
 function safeFileName(id: string) {
@@ -26,7 +27,7 @@ function sharePath(workshopPath: string, id: string) {
 
 function normalize(parsed: LocalShareSession): LocalShareSession | null {
   if (!parsed?.id || !parsed.ownerKey || !parsed.notePath) return null
-  return { ...parsed, importedSubmissionIds: Array.isArray(parsed.importedSubmissionIds) ? parsed.importedSubmissionIds : [] }
+  return { ...parsed, importedSubmissionIds: Array.isArray(parsed.importedSubmissionIds) ? parsed.importedSubmissionIds : [], unseenSubmissionIds: Array.isArray(parsed.unseenSubmissionIds) ? parsed.unseenSubmissionIds : [] }
 }
 
 export async function saveShareSession(workshopPath: string, session: LocalShareSession): Promise<void> {
@@ -42,9 +43,9 @@ export async function loadShareSession(workshopPath: string, id: string): Promis
   catch { return null }
 }
 
-export async function findShareSessionForNote(workshopPath: string, notePath: string): Promise<LocalShareSession | null> {
+export async function listShareSessions(workshopPath: string): Promise<LocalShareSession[]> {
   const folder = sharesFolder(workshopPath)
-  if (!(await exists(folder))) return null
+  if (!(await exists(folder))) return []
   try {
     const entries = await readDir(folder)
     const sessions: LocalShareSession[] = []
@@ -52,14 +53,18 @@ export async function findShareSessionForNote(workshopPath: string, notePath: st
       if (!entry.name?.endsWith('.json') || entry.isDirectory) continue
       try {
         const parsed = normalize(JSON.parse(await readTextFile(`${folder}/${entry.name}`)) as LocalShareSession)
-        if (parsed?.notePath === notePath) sessions.push(parsed)
+        if (parsed) sessions.push(parsed)
       } catch { /* malformed share files do not block the workshop */ }
     }
-    sessions.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    return sessions[0] ?? null
+    return sessions.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   } catch {
-    return null
+    return []
   }
+}
+
+export async function findShareSessionForNote(workshopPath: string, notePath: string): Promise<LocalShareSession | null> {
+  const sessions = await listShareSessions(workshopPath)
+  return sessions.find(session => session.notePath === notePath) ?? null
 }
 
 export async function markSubmissionsImported(workshopPath: string, session: LocalShareSession, submissionIds: string[]): Promise<LocalShareSession> {
@@ -73,4 +78,19 @@ export async function markSubmissionsImported(workshopPath: string, session: Loc
 
 export async function markSubmissionImported(workshopPath: string, session: LocalShareSession, submissionId: string): Promise<LocalShareSession> {
   return markSubmissionsImported(workshopPath, session, [submissionId])
+}
+
+
+export async function markSubmissionsUnseen(workshopPath: string, session: LocalShareSession, submissionIds: string[]): Promise<LocalShareSession> {
+  if (!submissionIds.length) return session
+  const unseen = new Set(session.unseenSubmissionIds)
+  submissionIds.forEach(id => unseen.add(id))
+  const next = { ...session, unseenSubmissionIds: [...unseen] }
+  await saveShareSession(workshopPath, next)
+  return next
+}
+
+export async function markAllSubmissionsSeen(workshopPath: string): Promise<void> {
+  const sessions = await listShareSessions(workshopPath)
+  await Promise.all(sessions.filter(session => session.unseenSubmissionIds.length).map(session => saveShareSession(workshopPath, { ...session, unseenSubmissionIds: [] })))
 }
