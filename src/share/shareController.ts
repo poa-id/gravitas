@@ -14,6 +14,7 @@ export async function createShareForNote(workshopPath: string, notePath: string,
     expiresAt: remote.expiresAt,
     snapshotSha256: remote.snapshotSha256,
     importedSubmissionIds: [],
+    unseenSubmissionIds: [],
   }
   await saveShareSession(workshopPath, session)
   return session
