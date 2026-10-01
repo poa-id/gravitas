@@ -238,3 +238,15 @@ Write → Read & Review → Audit & Resolve → Share for Review.
 ## Release 0.1 Gate
 
 Before merging `release/v1` to `main`: core/share manual QA, clean browser console, persistence and Markdown/rendering smoke tests, documentation current, `npm ci` + `build:web` green, tests green when present, and native Tauri builds validated for macOS and Windows. Never merge to `main` without explicit owner approval.
+
+
+## Incoming review behavior (0.1)
+
+- Active review copies are checked quietly while Gravitas is open (about every three minutes, plus when the app becomes visible again).
+- Background review checks are deliberately silent on network/service failure. Manual **Check for reviews** remains the explicit fallback that surfaces errors.
+- Imported submissions are idempotent through `importedSubmissionIds`; a remote submission must never create duplicate local marks.
+- Newly imported submissions are tracked separately as **unseen**. Unseen is not the same as unresolved: entering Audit clears the new-review indicator, while marks remain open until explicitly resolved.
+- **Write never shows an incoming-review toast.** New feedback may light the small Audit indicator, but it must not interrupt composition.
+- Outside Write, newly arrived feedback may show one quiet, aggregated toast. Do not create a notification center, sound, badge count, or OS push requirement.
+- The Share panel shows whether a live copy is waiting for feedback or already has received reviews. It is review-copy state, not an inbox.
+- Multiple reviewers and multiple active shares are expected. Background sync checks all unexpired local share sessions.
