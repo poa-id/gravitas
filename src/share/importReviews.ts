@@ -1,11 +1,12 @@
 import { loadReviewDeliveryNotes, loadReviews, saveReviewDeliveryNotes, saveReviews, type ReviewDeliveryNote, type ReviewMark } from '../review/reviewStore'
 import { fetchReviewResults } from './reviewClient'
-import { markSubmissionsImported, type LocalShareSession } from './shareStore'
+import { markSubmissionsImported, markSubmissionsUnseen, type LocalShareSession } from './shareStore'
 
 export interface ImportResult {
   session: LocalShareSession
   importedSubmissions: number
   importedMarks: number
+  reviewers: string[]
 }
 
 export async function importSharedReviews(workshopPath: string, session: LocalShareSession): Promise<ImportResult> {
@@ -18,9 +19,12 @@ export async function importSharedReviews(workshopPath: string, session: LocalSh
   const additions: ReviewMark[] = []
   const importedSubmissionIds: string[] = []
   let importedMarks = 0
+  const reviewers = new Set<string>()
 
   for (const submission of remote.submissions) {
     if (session.importedSubmissionIds.includes(submission.id)) continue
+
+    reviewers.add(submission.reviewerName)
 
     if (submission.reviewerNote.trim()) {
       const noteId = `shared-note:${submission.id}`
@@ -54,11 +58,13 @@ export async function importSharedReviews(workshopPath: string, session: LocalSh
   // could make a later refresh skip feedback that never reached the workshop.
   if (additions.length) await saveReviews(session.notePath, [...existing, ...additions])
   if (noteAdditions.length) await saveReviewDeliveryNotes(session.notePath, [...existingNotes, ...noteAdditions])
-  const currentSession = await markSubmissionsImported(workshopPath, session, importedSubmissionIds)
+  let currentSession = await markSubmissionsImported(workshopPath, session, importedSubmissionIds)
+  currentSession = await markSubmissionsUnseen(workshopPath, currentSession, importedSubmissionIds)
 
   return {
     session: currentSession,
     importedSubmissions: importedSubmissionIds.length,
     importedMarks,
+    reviewers: [...reviewers],
   }
 }
